@@ -10,6 +10,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 MODEL = "llama-3.3-70b-versatile"
 LUNA_COOLDOWN = 10  # seconds per user
 OWNER_ID = 1099923662267760745
+LOVED_IDS = {1099923662267760745, 948613491999264838}  # Ryuken + co-owner
 
 # ---------- LUNA'S PERSONALITY ----------
 
@@ -110,7 +111,7 @@ class AI(commands.Cog):
         last_trigger[user_id] = now
 
         # Owner bypass — no limits for Ryuken
-        if user_id != OWNER_ID:
+        if user_id not in LOVED_IDS:
             if _check_limit(user_id):
                 await message.reply(
                     "i don't even wanna reply to you anymore",
@@ -124,7 +125,7 @@ class AI(commands.Cog):
             _increment_count(user_id)
 
         # Pick system prompt
-        if user_id == OWNER_ID:
+        if user_id in LOVED_IDS:
             system = SYSTEM_PROMPT_OWNER
         elif replied:
             system = SYSTEM_PROMPT_ANGRY
@@ -133,7 +134,7 @@ class AI(commands.Cog):
 
         # If someone mentions Ryuken, add a nudge to the system prompt
         content_lower = message.content.lower()
-        if user_id != OWNER_ID and "ryuken" in content_lower:
+        if user_id not in LOVED_IDS and "ryuken" in content_lower:
             system += "\n\nIMPORTANT: This message mentions Ryuken. Defend him or hype him up based on context. If they're being negative about him, shut it down hard."
 
         # Build context from recent channel history
