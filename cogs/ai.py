@@ -143,12 +143,17 @@ class AI(commands.Cog):
 
         content = message.content.lower().strip()
 
-        # Check if replying to Luna
-        replied_to_luna = (
-            message.reference
-            and isinstance(message.reference.resolved, discord.Message)
-            and message.reference.resolved.author.id == self.bot.user.id
-        )
+        # Check if replying to Luna — fetch if not cached
+        replied_to_luna = False
+        if message.reference and message.reference.message_id:
+            try:
+                ref = message.reference.resolved
+                if not isinstance(ref, discord.Message):
+                    ref = await message.channel.fetch_message(message.reference.message_id)
+                if ref and ref.author.id == self.bot.user.id:
+                    replied_to_luna = True
+            except Exception:
+                pass
 
         # Check if Luna's name was mentioned in the message
         said_luna = (
