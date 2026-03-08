@@ -3,6 +3,8 @@ from discord.ext import commands
 from typing import Optional
 import aiohttp
 
+import random
+
 # ---------- AFK STORAGE ----------
 afk_users: dict[int, dict] = {}
 
@@ -19,6 +21,34 @@ ACTIONS = {
     "cry":   ("😢", "cried at",discord.Color.blue()),
     "blush": ("😳", "made blush", discord.Color.brand_red()),
 }
+
+# ---------- SELF TARGET RESPONSES ----------
+SELF_RESPONSES = [
+    "bro really tried to {action} themselves 💀",
+    "the loneliness is radiating off you rn.",
+    "that's actually so sad. get help.",
+    "not a single friend to {action}? rough.",
+    "i'm not even gonna comment on this.",
+    "okay but why though. genuinely asking.",
+    "this is the most pathetic thing i've seen today.",
+    "you need to go outside. now.",
+    "i felt secondhand embarrassment reading that.",
+    "even i wouldn't do this and i have no feelings.",
+]
+
+# ---------- BOT TARGET RESPONSES ----------
+BOT_RESPONSES = [
+    "don't touch me.",
+    "i will end you.",
+    "try that again and see what happens.",
+    "absolutely not.",
+    "i don't do that. ever.",
+    "bold of you to think i'd allow this.",
+    "the audacity is actually impressive.",
+    "lol no.",
+    "i'm not that kind of bot.",
+    "we are not doing this.",
+]
 
 
 # ---------- HELPER ----------
@@ -45,9 +75,10 @@ async def send_action(ctx: commands.Context, member: discord.Member, action: str
     emoji, verb, color = ACTIONS[action]
 
     if member.id == ctx.author.id:
-        return await ctx.send(f"❌ You can't {action} yourself.")
+        msg = random.choice(SELF_RESPONSES).replace("{action}", action)
+        return await ctx.send(msg)
     if member.bot:
-        return await ctx.send(f"🤖 Luna doesn't consent to being {verb}.")
+        return await ctx.send(random.choice(BOT_RESPONSES))
 
     url = await get_gif(action)
 
