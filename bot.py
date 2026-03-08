@@ -227,7 +227,6 @@ async def setup_hook():
         "cogs.music",
         "cogs.fun",
         "cogs.automation",
-        "cogs.ai",
     ]
     for cog in cogs:
         await bot.load_extension(cog)
