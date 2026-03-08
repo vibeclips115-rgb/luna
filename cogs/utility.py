@@ -161,9 +161,9 @@ class Utility(commands.Cog):
                     color=discord.Color.orange(),
                 )
                 embed.set_thumbnail(url=user.display_avatar.url)
-                embed.add_field(name="👤 User", value=user.mention, inline=False)
-                embed.add_field(name="📌 Reason", value=data["reason"], inline=False)
-                embed.set_footer(text=f"AFK since {discord.utils.format_dt(data['time'], style='R')}")
+                embed.add_field(name="👤 User", value=user.mention, inline=True)
+                embed.add_field(name="📌 Reason", value=data["reason"], inline=True)
+                embed.add_field(name="🕐 AFK Since", value=discord.utils.format_dt(data['time'], style='R'), inline=False)
                 await message.channel.send(embed=embed)
 
         # Don't remove AFK on command usage
