@@ -1,10 +1,11 @@
+import asyncio
+import random
+import time
+from typing import Final
+
 import discord
 from discord.ext import commands
 from discord.ext.commands import BucketType
-import random
-import asyncio
-import time
-from typing import Final
 
 from moonlight.database import (
     get_balance,
@@ -14,679 +15,720 @@ from moonlight.database import (
     get_top_balances,
 )
 
-MAX_BET = 250_000
+# ---------- CONSTANTS ----------
 
-blackjack_games = {}
+MAX_BET: Final = 250_000
+DAILY_MIN: Final = 5_000
+DAILY_MAX: Final = 15_000
+DAILY_COOLDOWN: Final = 86_400  # 24 hours in seconds
 
-CARD_VALUES: Final = {
+CURRENCY: Final = "MoonShards"
+COIN_EMOJI: Final = "<a:coinflip:1464991352147410944>"
+
+CARD_VALUES: Final[dict[str, int]] = {
     "A": 11,
-    "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
-    "7": 7, "8": 8, "9": 9, "10": 10,
-    "J": 10, "Q": 10, "K": 10
+    "2": 2,  "3": 3,  "4": 4,  "5": 5,  "6": 6,
+    "7": 7,  "8": 8,  "9": 9,  "10": 10,
+    "J": 10, "Q": 10, "K": 10,
 }
+CARDS: Final = list(CARD_VALUES.keys())
 
-CARDS = list(CARD_VALUES.keys())
+SUIT_ICONS: Final = ["♠️", "♥️", "♦️", "♣️"]
 
-COIN_EMOJI = "<a:coinflip:1464991352147410944>"
-CURRENCY = "MoonShards"
+# Wheel outcomes: (label, multiplier)
+WHEEL_OUTCOMES: Final = [
+    ("💀 Total disaster!", -4),
+    ("😬 Bad spin",        -2),
+    ("😐 Weak spin",       -1),
+    ("🍀 Lucky spin!",      1),
+    ("🔥 Great spin!",      2),
+    ("💎 JACKPOT!",         4),
+]
 
-def hand_value(hand):
+# Fish outcomes: (label, multiplier)
+FISH_OUTCOMES: Final = [
+    ("💀 You fished up literal trash. x4 loss", -4),
+    ("😬 A soggy boot. x2 loss",                -2),
+    ("🐟 Small fish! x1 profit",                 1),
+    ("🐠 Nice catch! x2 profit",                 2),
+    ("🦈 BIG FISH! x3 profit",                   3),
+    ("🐋 LEGENDARY CATCH! x4 profit",            4),
+]
+
+# Slots symbols: (symbol, weight, multiplier)
+SLOTS_REELS: Final = [
+    ("🍋", 30, 1.5),
+    ("🍒", 25, 2),
+    ("🔔", 20, 2.5),
+    ("⭐", 15, 3),
+    ("💎", 7,  5),
+    ("🌙", 3,  10),
+]
+
+# ---------- ACTIVE GAME STORES ----------
+blackjack_games: dict[int, dict] = {}
+
+
+# ---------- HELPERS ----------
+
+def hand_value(hand: list[str]) -> int:
     value = sum(CARD_VALUES[c] for c in hand)
     aces = hand.count("A")
-
     while value > 21 and aces:
         value -= 10
         aces -= 1
-
     return value
 
-WHEEL_SPIN_GIF = "https://media.tenor.com/6K7Ew6N6cEAAAAAC/spinning-wheel.gif"
 
+def validate_bet(amount: int, balance: int, max_bet: int = MAX_BET) -> str | None:
+    """Returns an error string or None if valid."""
+    if amount <= 0:
+        return "❌ Enter a positive amount."
+    if amount > max_bet:
+        return f"❌ Max bet is **{max_bet:,} {CURRENCY}**."
+    if amount > balance:
+        return f"❌ You don't have enough {CURRENCY}."
+    return None
+
+
+def balance_bar(balance: int, max_display: int = 250_000) -> str:
+    """Visual balance bar for embeds."""
+    filled = min(10, round((balance / max_display) * 10))
+    return "🟣" * filled + "⬛" * (10 - filled)
+
+
+def spin_slots() -> tuple[list[str], float]:
+    """
+    Spins 3 slot reels using weighted random selection.
+    Returns (symbols, multiplier). Multiplier 0 = loss.
+    """
+    symbols = [s for s, _, _ in SLOTS_REELS]
+    weights = [w for _, w, _ in SLOTS_REELS]
+    mult_map = {s: m for s, _, m in SLOTS_REELS}
+
+    result = random.choices(symbols, weights=weights, k=3)
+
+    if result[0] == result[1] == result[2]:
+        return result, mult_map[result[0]]
+    elif result[0] == result[1] or result[1] == result[2]:
+        return result, 0.5  # partial match
+    else:
+        return result, 0.0  # loss
+
+
+# ---------- COG ----------
 
 class Gambling(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    # ---------- PING ----------
+
     @commands.command()
     async def ping(self, ctx: commands.Context):
-        await ctx.send("🏓 Pong! I'm alive.")
+        latency = round(self.bot.latency * 1000)
+        await ctx.send(f"🏓 Pong! **{latency}ms**")
 
-    @commands.command(name="pay", aliases=["transfer", "give"])
-    async def pay(self, ctx, member: discord.Member, amount: int):
-     sender = ctx.author
+    # ---------- BALANCE ----------
 
-     # ❌ Invalid cases
-     if member.bot:
-        return await ctx.send("🤖 You can’t send MoonShards to bots.")
-
-     if member.id == sender.id:
-        return await ctx.send("❌ You can’t pay yourself.")
-
-     if amount <= 0:
-         return await ctx.send("❌ Amount must be greater than 0.")
-
-     sender_balance = get_balance(sender.id)
-
-     if sender_balance < amount:
-        return await ctx.send(
-            f"❌ You don’t have enough MoonShards.\n"
-            f"💰 Your balance: **{sender_balance}** 🌙"
-        )
-
-      # ✅ Transfer
-     receiver_balance = get_balance(member.id)
-
-     set_balance(sender.id, sender_balance - amount)
-     set_balance(member.id, receiver_balance + amount)
-
-     # ✅ Embed
-     embed = discord.Embed(
-        title="🌙 MoonShards Transfer",
-        color=discord.Color.blurple()
-     )
-
-     embed.add_field(
-        name="📤 Sender",
-        value=sender.mention,
-        inline=True
-     )
-
-     embed.add_field(
-        name="📥 Receiver",
-        value=member.mention,
-        inline=True
-     )
-
-     embed.add_field(
-        name="💸 Amount",
-        value=f"**{amount}** MoonShards 🌙",
-        inline=False
-     )
-
-     embed.set_thumbnail(url=sender.display_avatar.url)
-     embed.set_footer(text="MoonLight Economy • Secure Transfer")
-
-     await ctx.send(embed=embed)
-
-    @commands.command(aliases=["spin"])
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def sw(self, ctx, amount: int):
-     user_id = ctx.author.id
-     balance = get_balance(user_id)
-
-     MAX_BET = 100_000
-
-    # ---------- VALIDATION ----------
-     if amount <= 0:
-        return await ctx.send("❌ Enter a positive amount.")
-     if amount > MAX_BET:
-        return await ctx.send("❌ Max bet is **100,000**.")
-     if amount > balance:
-        return await ctx.send("❌ You don’t have enough balance.")
-
-    # ---------- SPINNING EMBED ----------
-     spinning_embed = discord.Embed(
-        title="🎡 Spinning the Wheel...",
-        description="The wheel spins under the Moonlight 🌙",
-        color=discord.Color.blurple()
-     )
-     spinning_embed.set_image(
-        url="https://media1.tenor.com/m/7T24taTZIWQAAAAd/spinning.gif"
-    )
-
-     msg = await ctx.send(embed=spinning_embed)
-     await asyncio.sleep(2)
-
-    # ---------- OUTCOMES ----------
-     outcomes = [
-        ("💀 Total disaster!", -4),
-        ("😬 Bad spin", -2),
-        ("😐 Weak spin", -1),
-        ("🍀 Lucky spin!", 1),
-        ("🔥 Great spin!", 2),
-        ("💎 JACKPOT!", 4),
-    ]
-
-     text, multiplier = random.choice(outcomes)
-
-     if multiplier > 0:
-        change = amount * multiplier
-        new_balance = balance + change
-        result_text = f"🎉 **+{change} {CURRENCY}**"
-        color = discord.Color.green()
-     else:
-        change = amount * abs(multiplier)
-        new_balance = balance - change
-        result_text = f"💸 **-{change} {CURRENCY}**"
-        color = discord.Color.red()
-
-     set_balance(user_id, new_balance)
-
-    # ---------- RESULT EMBED ----------
-     result_embed = discord.Embed(
-        title="🎡 Spin Result",
-        description=text,
-        color=color
-    )
-
-     result_embed.add_field(
-        name="🎯 Bet",
-        value=f"`{amount} {CURRENCY}`",
-        inline=True
-    )
-
-     result_embed.add_field(
-        name="📊 Outcome",
-        value=result_text,
-        inline=True
-    )
-
-     result_embed.add_field(
-        name="💰 New Balance",
-        value=f"`{new_balance} {CURRENCY}`",
-        inline=False
-     )
-
-     result_embed.set_footer(text="Moonlight Casino 🌙 Spin responsibly")
-
-     await msg.edit(embed=result_embed)
-
-    @commands.command()
-    @commands.cooldown(1, 10, BucketType.user)
-    async def fish(self, ctx, amount: int):
-     user_id = ctx.author.id
-     balance = get_balance(user_id)
-
-     MAX_BET = 100_000
-
-     # ---------- VALIDATION ----------
-     if amount <= 0:
-        return await ctx.send("❌ Enter a positive amount.")
-     if amount > MAX_BET:
-        return await ctx.send("❌ Max bet for fishing is **100,000 MoonShards**.")
-     if amount > balance:
-        return await ctx.send(f"❌ You don’t have enough {CURRENCY}.")
- 
-     # ---------- SUSPENSE ----------
-     start_embed = discord.Embed(
-        title="🎣 Fishing...",
-        description="Casting your line into the Moonlight waters 🌊",
-        color=discord.Color.blurple()
-     )
-     start_embed.set_footer(text="Will you catch treasure or trash?")
-     msg = await ctx.send(embed=start_embed)
-
-     await asyncio.sleep(2)
-
-     # ---------- OUTCOMES ----------
-     outcomes = [
-        ("💀 You caught trash! x4 loss", -4),
-        ("😬 A weak catch... x2 loss", -2),
-        ("🐟 Small fish! x1 profit", 1),
-        ("🐠 Nice catch! x2 profit", 2),
-        ("🦈 BIG FISH! x3 profit", 3),
-        ("🐋 LEGENDARY CATCH! x4 profit", 4),
-     ]
-
-     result_text, multiplier = random.choice(outcomes)
-
-     if multiplier > 0:
-        profit = amount * multiplier
-        new_balance = balance + profit
-        color = discord.Color.green()
-        result_line = f"🎉 **+{profit} {CURRENCY}**"
-     else:
-        loss = amount * abs(multiplier)
-        new_balance = balance - loss
-        color = discord.Color.red()
-        result_line = f"💸 **-{loss} {CURRENCY}**"
-
-     set_balance(user_id, new_balance)
-
-    # ---------- RESULT EMBED ----------
-     result_embed = discord.Embed(
-        title="🎣 Fishing Result",
-        description=result_text,
-        color=color
-     )
-
-     result_embed.add_field(
-        name="🎯 Bet",
-        value=f"`{amount} {CURRENCY}`",
-        inline=True
-     )
-
-     result_embed.add_field(
-        name="📊 Outcome",
-        value=result_line,
-        inline=True
-     )
-
-     result_embed.add_field(
-        name="💰 New Balance",
-        value=f"`{new_balance} {CURRENCY}`",
-        inline=False
-     )
-
-     result_embed.set_footer(text="Moonlight Economy • Fish responsibly 🌙")
-
-     await msg.edit(embed=result_embed)
-
-    @commands.command(aliases=["bal", "networth"])
-    async def balance(self, ctx, member: discord.Member = None):
+    @commands.command(aliases=["bal", "networth", "wallet"])
+    async def balance(self, ctx: commands.Context, member: discord.Member = None):
         user = member or ctx.author
-        user_id = user.id
-
-        balance = get_balance(user_id)
+        bal = get_balance(user.id)
 
         embed = discord.Embed(
             title="💰 Moonlight Wallet",
-            color=discord.Color.purple()
+            color=discord.Color.purple(),
         )
-
-        # Profile picture
         embed.set_thumbnail(url=user.display_avatar.url)
-
+        embed.add_field(name="👤 User", value=user.mention, inline=True)
+        embed.add_field(name="🏠 Server", value=ctx.guild.name, inline=True)
         embed.add_field(
-            name="👤 User",
-            value=user.mention,
-            inline=False
+            name="💎 Balance",
+            value=f"**{bal:,} {CURRENCY}**\n{balance_bar(bal)}",
+            inline=False,
         )
-
-        embed.add_field(
-            name="📍 Server",
-            value=ctx.guild.name,
-            inline=False
-        )
-
-        embed.add_field(
-            name="💎 Net Worth",
-            value=f"**{balance:,} {CURRENCY}**",
-            inline=True
-        )
-
-        embed.add_field(
-            name="💰 Current Balance",
-            value=f"**{balance:,} {CURRENCY}**",
-            inline=True
-        )
-
         embed.set_footer(
-            text="Moonlight Economy • Your financial status 🌙",
-            icon_url=ctx.guild.icon.url if ctx.guild.icon else None
+            text="MoonLight Economy 🌙",
+            icon_url=ctx.guild.icon.url if ctx.guild.icon else None,
         )
-
         await ctx.send(embed=embed)
 
-    @commands.command()
-    @commands.is_owner()
-    async def addmoney(self, ctx: commands.Context, amount: int):
-        user_id: int = ctx.author.id
+    # ---------- PAY ----------
 
-        if amount <= 0:
-            await ctx.send("❌ Amount must be positive.")
-            return
+    @commands.command(aliases=["transfer", "give"])
+    async def pay(self, ctx: commands.Context, member: discord.Member, amount: int):
+        if member.bot:
+            return await ctx.send("🤖 You can't send MoonShards to bots.")
+        if member.id == ctx.author.id:
+            return await ctx.send("❌ You can't pay yourself.")
 
-        new_balance: int = get_balance(user_id) + amount
-        set_balance(user_id, new_balance)
+        sender_bal = get_balance(ctx.author.id)
+        err = validate_bet(amount, sender_bal, max_bet=sender_bal)
+        if err:
+            return await ctx.send(err)
 
-        await ctx.send(
-            f"💸 **Admin Grant**\n"
-            f"+{amount:,} {CURRENCY}\n"
-            f"💰 New Balance: **{new_balance:,}**"
+        set_balance(ctx.author.id, sender_bal - amount)
+        set_balance(member.id, get_balance(member.id) + amount)
+
+        embed = discord.Embed(
+            title="🌙 MoonShards Transfer",
+            color=discord.Color.blurple(),
         )
+        embed.add_field(name="📤 From", value=ctx.author.mention, inline=True)
+        embed.add_field(name="📥 To", value=member.mention, inline=True)
+        embed.add_field(name="💸 Amount", value=f"**{amount:,} {CURRENCY}**", inline=False)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        embed.set_footer(text="MoonLight Economy • Secure Transfer 🌙")
+        await ctx.send(embed=embed)
+
+    # ---------- DAILY ----------
 
     @commands.command()
     async def daily(self, ctx: commands.Context):
-        user_id: int = ctx.author.id
-        now: int = int(time.time())
-        cooldown: int = 86400  # 24 hours
+        user_id = ctx.author.id
+        now = int(time.time())
 
-        # ensure user row exists
-        get_balance(user_id)
+        get_balance(user_id)  # ensure row exists
+        last = get_last_daily(user_id)
+        remaining = DAILY_COOLDOWN - (now - last)
 
-        last_claim: int = get_last_daily(user_id)
-
-        if now - last_claim < cooldown:
-            remaining = cooldown - (now - last_claim)
-            hours, remainder = divmod(remaining, 3600)
-            minutes, _ = divmod(remainder, 60)
-            await ctx.send(
-                f"⏳ Too soon! Come back in **{hours}h {minutes}m** 🌙"
+        if remaining > 0:
+            h, rem = divmod(remaining, 3600)
+            m, _ = divmod(rem, 60)
+            embed = discord.Embed(
+                description=f"⏳ Come back in **{h}h {m}m** 🌙",
+                color=discord.Color.red(),
             )
-            return
+            return await ctx.send(embed=embed)
 
-        reward: int = random.randint(5000, 15000)
-        new_balance: int = get_balance(user_id) + reward
-
-        set_balance(user_id, new_balance)
+        reward = random.randint(DAILY_MIN, DAILY_MAX)
+        new_bal = get_balance(user_id) + reward
+        set_balance(user_id, new_bal)
         db_set_daily(user_id, timestamp=now)
 
-        await ctx.send(
-            f"🎁 **Daily Reward!**\n"
-            f"+{reward:,} {CURRENCY}\n"
-            f"💰 Balance: **{new_balance:,}**"
+        embed = discord.Embed(
+            title="🎁 Daily Reward",
+            description=f"**+{reward:,} {CURRENCY}** added to your wallet!",
+            color=discord.Color.green(),
         )
+        embed.add_field(
+            name="💰 New Balance",
+            value=f"**{new_bal:,} {CURRENCY}**\n{balance_bar(new_bal)}",
+            inline=False,
+        )
+        embed.set_footer(text="MoonLight Economy • Come back tomorrow 🌙")
+        await ctx.send(embed=embed)
 
+    # ---------- ADD MONEY (OWNER) ----------
 
-    @commands.command(aliases=["lb", "top"])
-    async def leaderboard(self, ctx):
-        top_users = get_top_balances(10)
+    @commands.command()
+    @commands.is_owner()
+    async def addmoney(self, ctx: commands.Context, member: discord.Member = None, amount: int = 0):
+        target = member or ctx.author
+        if amount <= 0:
+            return await ctx.send("❌ Amount must be positive.")
 
-        if not top_users:
+        new_bal = get_balance(target.id) + amount
+        set_balance(target.id, new_bal)
+
+        embed = discord.Embed(
+            title="💸 Admin Grant",
+            description=f"**+{amount:,} {CURRENCY}** → {target.mention}",
+            color=discord.Color.gold(),
+        )
+        embed.add_field(name="💰 New Balance", value=f"**{new_bal:,}**", inline=False)
+        await ctx.send(embed=embed)
+
+    # ---------- LEADERBOARD ----------
+
+    @commands.command(aliases=["lb", "top", "rich"])
+    async def leaderboard(self, ctx: commands.Context):
+        top = get_top_balances(10)
+        if not top:
             return await ctx.send("❌ No data yet.")
 
         embed = discord.Embed(
             title="🏆 MoonShards Leaderboard",
-            description="Top 10 richest players 🌙",
-            color=discord.Color.purple()
+            description="The richest players in the Moonlight 🌙",
+            color=discord.Color.gold(),
         )
-
         medals = ["🥇", "🥈", "🥉"]
 
-        for i, (user_id, balance) in enumerate(top_users):
-            medal = medals[i] if i < 3 else f"#{i+1}"
-
-            user = self.bot.get_user(user_id)
-            if user is None:
+        for i, (uid, bal) in enumerate(top):
+            medal = medals[i] if i < 3 else f"`#{i+1}`"
+            user = self.bot.get_user(uid)
+            if not user:
                 try:
-                    user = await self.bot.fetch_user(user_id)
-                except discord.NotFound:
+                    user = await self.bot.fetch_user(uid)
+                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                     user = None
-                except discord.Forbidden:
-                    user = None
-                except discord.HTTPException as e:
-                    print(f"Failed to fetch user {user_id}: {e}")
-                    user = None
-
-            name = user.name if user else f"User {user_id}"
-
+            name = user.name if user else f"Unknown ({uid})"
             embed.add_field(
                 name=f"{medal} {name}",
-                value=f"💰 `{balance} {CURRENCY}`",
-                inline=False
+                value=f"💰 `{bal:,} {CURRENCY}`",
+                inline=False,
             )
 
-        embed.set_footer(text="Moonlight Economy • Play responsibly 🌌")
-
+        embed.set_footer(text="MoonLight Economy • Play responsibly 🌌")
         await ctx.send(embed=embed)
 
-
-    @commands.command(aliases=["d"])
-    @commands.cooldown(1, 10, BucketType.user)
-    async def dice(self, ctx, amount: int, n1: int, n2: int):
-        user_id = ctx.author.id
-        balance = get_balance(user_id)
-
-        # ---------- VALIDATION ----------
-        if amount <= 0:
-            return await ctx.send("❌ Enter a positive amount.")
-
-        if amount > balance:
-            return await ctx.send(f"❌ You don’t have enough {CURRENCY}.")
-
-        if amount > MAX_BET:
-            return await ctx.send(f"❌ Max bet is **{MAX_BET} {CURRENCY}**.")
-
-        if n1 == n2:
-            return await ctx.send("❌ The two numbers must be different.")
-
-        if not (1 <= n1 <= 6 and 1 <= n2 <= 6):
-            return await ctx.send("❌ Dice numbers must be between **1 and 6**.")
-
-        # ---------- ROLL PREP ----------
-        guessed = {n1, n2}
-        rolled = random.sample(range(1, 7), 2)
-        matches = len(guessed.intersection(rolled))
-
-        # ---------- SUSPENSE EMBED ----------
-        rolling_embed = discord.Embed(
-            title="🎲 Rolling the dice...",
-            description="The dice are in the air 🌙",
-            color=discord.Color.blurple()
-        )
-        rolling_embed.set_footer(text="Moonlight Economy • Feeling lucky?")
-
-        msg = await ctx.send(embed=rolling_embed)
-
-        # ⏳ THE THRILL
-        await asyncio.sleep(1.8)
-
-        # ---------- RESULT ----------
-        if matches == 2:
-            winnings = amount * 2
-            new_balance = balance + winnings
-            title = "🔥 JACKPOT!"
-            color = discord.Color.gold()
-            result_text = f"You matched **both numbers**!\n🎉 **+{winnings} {CURRENCY}**"
-        elif matches == 1:
-            winnings = amount
-            new_balance = balance + winnings
-            title = "✅ You Won!"
-            color = discord.Color.green()
-            result_text = f"You matched **1 number**!\n🎉 **+{winnings} {CURRENCY}**"
-        else:
-            new_balance = balance - amount
-            title = "💀 You Lost"
-            color = discord.Color.red()
-            result_text = f"No matches.\n❌ **-{amount} {CURRENCY}**"
-
-        set_balance(user_id, new_balance)
-
-        # ---------- FINAL EMBED ----------
-        result_embed = discord.Embed(
-            title=title,
-            color=color
-        )
-
-        result_embed.add_field(
-            name="🎲 Dice Rolled",
-            value=f"**{rolled[0]} & {rolled[1]}**",
-            inline=True
-        )
-
-        result_embed.add_field(
-            name="🎯 Your Guess",
-            value=f"**{n1} & {n2}**",
-            inline=True
-        )
-
-        result_embed.add_field(
-            name="📊 Result",
-            value=result_text,
-            inline=False
-        )
-
-        result_embed.add_field(
-            name="💰 New Balance",
-            value=f"`{new_balance} {CURRENCY}`",
-            inline=False
-        )
-
-        result_embed.set_footer(text="Moonlight Economy • Dice Roll 🎲")
-
-        # 🔁 EDIT — not send
-        await msg.edit(embed=result_embed)
+    # ---------- COINFLIP ----------
 
     @commands.command(aliases=["cf"])
     @commands.cooldown(1, 8, BucketType.user)
-    async def coinflip(self, ctx, amount: int, choice: str = "h"):
+    async def coinflip(self, ctx: commands.Context, amount: int, choice: str = "h"):
         user_id = ctx.author.id
         balance = get_balance(user_id)
         choice = choice.lower()
 
-        if choice not in ["h", "t"]:
-            return await ctx.send("❌ Use `$cf <amount> h/t`")
-        if amount <= 0:
-            return await ctx.send("❌ Enter a positive amount.")
-        if amount > balance:
-            return await ctx.send(f"❌ You don’t have enough {CURRENCY}.")
-        if amount > MAX_BET:
-            return await ctx.send(f"❌ Max bet is **{MAX_BET} {CURRENCY}**.")
+        if choice not in ("h", "t"):
+            return await ctx.send("❌ Use `$cf <amount> h` or `$cf <amount> t`")
 
-        bet_on = "Heads" if choice == "h" else "Tails"
+        err = validate_bet(amount, balance)
+        if err:
+            return await ctx.send(err)
 
-        msg = await ctx.send(
-            f"{COIN_EMOJI} **Flipping...**\n"
-            f"🎯 You bet on **{bet_on}**"
+        bet_label = "Heads" if choice == "h" else "Tails"
+
+        embed = discord.Embed(
+            title=f"{COIN_EMOJI} Flipping...",
+            description=f"🎯 You bet on **{bet_label}**",
+            color=discord.Color.blurple(),
         )
+        msg = await ctx.send(embed=embed)
         await asyncio.sleep(1.8)
 
-        result = random.choice(["h", "t"])
+        result = random.choice(("h", "t"))
         landed = "Heads" if result == "h" else "Tails"
+        won = choice == result
 
-        if choice == result:
-            new_balance = balance + amount
-            result_text = f"🎉 You **WON {amount}**!"
-        else:
-            new_balance = balance - amount
-            result_text = f"💀 You **LOST {amount}**..."
+        new_bal = balance + amount if won else balance - amount
+        set_balance(user_id, new_bal)
 
-        set_balance(user_id, new_balance)
-
-        await msg.edit(
-            content=f"🪙 **{landed}!**\n"
-                    f"🎯 You bet on **{bet_on}**\n"
-                    f"{result_text}\n"
-                    f"💰 Balance: **{new_balance}**"
+        result_embed = discord.Embed(
+            title=f"🪙 {landed}!",
+            description=f"🎯 You bet on **{bet_label}**\n{'🎉 You **WON**!' if won else '💀 You **LOST**...'}",
+            color=discord.Color.green() if won else discord.Color.red(),
         )
-    @commands.command()
-    async def bj(self, ctx, amount: int):
+        result_embed.add_field(
+            name="📊 Change",
+            value=f"{'+'if won else '-'}{amount:,} {CURRENCY}",
+            inline=True,
+        )
+        result_embed.add_field(
+            name="💰 Balance",
+            value=f"**{new_bal:,}**",
+            inline=True,
+        )
+        result_embed.set_footer(text="MoonLight Casino 🌙")
+        await msg.edit(embed=result_embed)
+
+    # ---------- DICE ----------
+
+    @commands.command(aliases=["d"])
+    @commands.cooldown(1, 10, BucketType.user)
+    async def dice(self, ctx: commands.Context, amount: int, n1: int, n2: int):
         user_id = ctx.author.id
         balance = get_balance(user_id)
 
-        if amount <= 0:
-            return await ctx.send("❌ Enter a positive amount.")
+        err = validate_bet(amount, balance)
+        if err:
+            return await ctx.send(err)
+        if n1 == n2:
+            return await ctx.send("❌ The two guesses must be different.")
+        if not (1 <= n1 <= 6 and 1 <= n2 <= 6):
+            return await ctx.send("❌ Dice numbers must be between **1 and 6**.")
 
+        loading = discord.Embed(
+            title="🎲 Rolling...",
+            description="The dice tumble across the table 🌙",
+            color=discord.Color.blurple(),
+        )
+        msg = await ctx.send(embed=loading)
+        await asyncio.sleep(1.8)
 
-        if amount > MAX_BET:
-            return await ctx.send(
-                f"❌ Max blackjack bet is **{MAX_BET:,} {CURRENCY}**."
+        guessed = {n1, n2}
+        rolled = random.sample(range(1, 7), 2)
+        matches = len(guessed & set(rolled))
+
+        if matches == 2:
+            delta = amount * 2
+            new_bal = balance + delta
+            title, color = "🔥 JACKPOT!", discord.Color.gold()
+            result = f"Both numbers matched!\n🎉 **+{delta:,} {CURRENCY}**"
+        elif matches == 1:
+            delta = amount
+            new_bal = balance + delta
+            title, color = "✅ You Won!", discord.Color.green()
+            result = f"One number matched!\n🎉 **+{delta:,} {CURRENCY}**"
+        else:
+            new_bal = balance - amount
+            title, color = "💀 You Lost", discord.Color.red()
+            result = f"No matches.\n❌ **-{amount:,} {CURRENCY}**"
+
+        set_balance(user_id, new_bal)
+
+        embed = discord.Embed(title=title, color=color)
+        embed.add_field(name="🎲 Rolled", value=f"**{rolled[0]} & {rolled[1]}**", inline=True)
+        embed.add_field(name="🎯 Guessed", value=f"**{n1} & {n2}**", inline=True)
+        embed.add_field(name="📊 Result", value=result, inline=False)
+        embed.add_field(name="💰 New Balance", value=f"`{new_bal:,} {CURRENCY}`", inline=False)
+        embed.set_footer(text="MoonLight Casino 🎲")
+        await msg.edit(embed=embed)
+
+    # ---------- SPIN WHEEL ----------
+
+    @commands.command(aliases=["spin"])
+    @commands.cooldown(1, 10, BucketType.user)
+    async def sw(self, ctx: commands.Context, amount: int):
+        user_id = ctx.author.id
+        balance = get_balance(user_id)
+
+        err = validate_bet(amount, balance, max_bet=100_000)
+        if err:
+            return await ctx.send(err)
+
+        loading = discord.Embed(
+            title="🎡 Spinning the Wheel...",
+            description="The wheel spins under the Moonlight 🌙",
+            color=discord.Color.blurple(),
+        )
+        loading.set_image(url="https://media1.tenor.com/m/7T24taTZIWQAAAAd/spinning.gif")
+        msg = await ctx.send(embed=loading)
+        await asyncio.sleep(2)
+
+        label, multiplier = random.choice(WHEEL_OUTCOMES)
+        won = multiplier > 0
+        delta = amount * abs(multiplier)
+        new_bal = balance + delta if won else balance - delta
+        set_balance(user_id, new_bal)
+
+        embed = discord.Embed(
+            title="🎡 Spin Result",
+            description=label,
+            color=discord.Color.green() if won else discord.Color.red(),
+        )
+        embed.add_field(name="🎯 Bet", value=f"`{amount:,} {CURRENCY}`", inline=True)
+        embed.add_field(
+            name="📊 Outcome",
+            value=f"{'🎉 +' if won else '💸 -'}{delta:,} {CURRENCY}",
+            inline=True,
+        )
+        embed.add_field(name="💰 New Balance", value=f"`{new_bal:,} {CURRENCY}`", inline=False)
+        embed.set_footer(text="MoonLight Casino 🌙 Spin responsibly")
+        await msg.edit(embed=embed)
+
+    # ---------- FISH ----------
+
+    @commands.command()
+    @commands.cooldown(1, 10, BucketType.user)
+    async def fish(self, ctx: commands.Context, amount: int):
+        user_id = ctx.author.id
+        balance = get_balance(user_id)
+
+        err = validate_bet(amount, balance, max_bet=100_000)
+        if err:
+            return await ctx.send(err)
+
+        loading = discord.Embed(
+            title="🎣 Fishing...",
+            description="Casting your line into the Moonlight waters 🌊",
+            color=discord.Color.blurple(),
+        )
+        loading.set_footer(text="Will you catch treasure or trash?")
+        msg = await ctx.send(embed=loading)
+        await asyncio.sleep(2)
+
+        label, multiplier = random.choice(FISH_OUTCOMES)
+        won = multiplier > 0
+        delta = amount * abs(multiplier)
+        new_bal = balance + delta if won else balance - delta
+        set_balance(user_id, new_bal)
+
+        embed = discord.Embed(
+            title="🎣 Fishing Result",
+            description=label,
+            color=discord.Color.green() if won else discord.Color.red(),
+        )
+        embed.add_field(name="🎯 Bet", value=f"`{amount:,} {CURRENCY}`", inline=True)
+        embed.add_field(
+            name="📊 Outcome",
+            value=f"{'🎉 +' if won else '💸 -'}{delta:,} {CURRENCY}",
+            inline=True,
+        )
+        embed.add_field(name="💰 New Balance", value=f"`{new_bal:,} {CURRENCY}`", inline=False)
+        embed.set_footer(text="MoonLight Economy • Fish responsibly 🌙")
+        await msg.edit(embed=embed)
+
+    # ---------- SLOTS ----------
+
+    @commands.command(aliases=["slot"])
+    @commands.cooldown(1, 8, BucketType.user)
+    async def slots(self, ctx: commands.Context, amount: int):
+        """Pull the slot machine."""
+        user_id = ctx.author.id
+        balance = get_balance(user_id)
+
+        err = validate_bet(amount, balance, max_bet=100_000)
+        if err:
+            return await ctx.send(err)
+
+        loading = discord.Embed(
+            title="🎰 Spinning Slots...",
+            description="🎰 | ❓ ❓ ❓ | 🎰",
+            color=discord.Color.blurple(),
+        )
+        msg = await ctx.send(embed=loading)
+        await asyncio.sleep(2)
+
+        reels, multiplier = spin_slots()
+        display = " | ".join(reels)
+
+        won = multiplier > 0
+        if won:
+            delta = int(amount * multiplier)
+            new_bal = balance + delta
+            if multiplier >= 5:
+                title, color = "🌙 MOONSHOT JACKPOT!", discord.Color.gold()
+            elif multiplier >= 3:
+                title, color = "💎 Big Win!", discord.Color.green()
+            elif multiplier == 0.5:
+                title, color = "😐 Partial Match", discord.Color.blurple()
+            else:
+                title, color = "✅ You Won!", discord.Color.green()
+            outcome = f"🎉 **+{delta:,} {CURRENCY}**"
+        else:
+            new_bal = balance - amount
+            title, color = "💀 No Match", discord.Color.red()
+            outcome = f"💸 **-{amount:,} {CURRENCY}**"
+
+        set_balance(user_id, new_bal)
+
+        embed = discord.Embed(title=title, color=color)
+        embed.add_field(name="🎰 Reels", value=f"**{display}**", inline=False)
+        embed.add_field(name="📊 Outcome", value=outcome, inline=True)
+        embed.add_field(name="💰 New Balance", value=f"`{new_bal:,} {CURRENCY}`", inline=True)
+        embed.set_footer(text="MoonLight Casino • Try your luck 🌙")
+        await msg.edit(embed=embed)
+
+    # ---------- ROB ----------
+
+    @commands.command()
+    @commands.cooldown(1, 60, BucketType.user)
+    async def rob(self, ctx: commands.Context, target: discord.Member):
+        """Attempt to rob another user. High risk, high reward."""
+        if target.bot:
+            return await ctx.send("🤖 You can't rob a bot.")
+        if target.id == ctx.author.id:
+            return await ctx.send("💀 You can't rob yourself.")
+
+        robber_bal = get_balance(ctx.author.id)
+        victim_bal = get_balance(target.id)
+
+        if victim_bal < 500:
+            return await ctx.send(f"💀 {target.mention} is too broke to rob.")
+        if robber_bal < 1000:
+            return await ctx.send("❌ You need at least **1,000** to attempt a robbery.")
+
+        # 40% success rate
+        success = random.random() < 0.4
+        stolen = random.randint(100, min(5000, victim_bal // 4))
+        fine = random.randint(500, 2000)
+
+        if success:
+            set_balance(ctx.author.id, robber_bal + stolen)
+            set_balance(target.id, victim_bal - stolen)
+            embed = discord.Embed(
+                title="🦹 Robbery Successful!",
+                description=f"You slipped away with **{stolen:,} {CURRENCY}** from {target.mention}.",
+                color=discord.Color.green(),
             )
-        if amount > balance:
-            return await ctx.send("❌ Not enough balance.")
+            embed.add_field(name="💰 Your Balance", value=f"`{robber_bal + stolen:,}`", inline=True)
+        else:
+            new_robber_bal = max(0, robber_bal - fine)
+            set_balance(ctx.author.id, new_robber_bal)
+            embed = discord.Embed(
+                title="🚨 Caught!",
+                description=f"You got caught trying to rob {target.mention} and paid a **{fine:,} {CURRENCY}** fine.",
+                color=discord.Color.red(),
+            )
+            embed.add_field(name="💰 Your Balance", value=f"`{new_robber_bal:,}`", inline=True)
+
+        embed.set_footer(text="MoonLight Casino • Crime doesn't always pay 🌙")
+        await ctx.send(embed=embed)
+
+    # ---------- BLACKJACK ----------
+
+    @commands.command(aliases=["bj", "blackjack"])
+    async def bj(self, ctx: commands.Context, amount: int):
+        user_id = ctx.author.id
+        balance = get_balance(user_id)
+
+        err = validate_bet(amount, balance)
+        if err:
+            return await ctx.send(err)
         if user_id in blackjack_games:
             return await ctx.send("❌ Finish your current blackjack game first.")
 
         player = random.sample(CARDS, 2)
         dealer = random.sample(CARDS, 2)
+        pval = hand_value(player)
 
-        embed = discord.Embed(
-            title="🃏 Blackjack",
-            color=discord.Color.blurple()
-        )
-
+        embed = discord.Embed(title="🃏 Blackjack", color=discord.Color.blurple())
         embed.add_field(
             name="🧍 Your Hand",
-            value=f"{' '.join(player)} (`{hand_value(player)}`)",
-            inline=False
+            value=f"`{' '.join(player)}` → **{pval}**",
+            inline=False,
         )
-
         embed.add_field(
             name="🤵 Dealer",
-            value=f"{dealer[0]} ❓",
-            inline=False
+            value=f"`{dealer[0]}` ❓",
+            inline=False,
         )
-
-        embed.set_footer(text="🟢 = Hit | 🛑 = Stand")
+        embed.add_field(
+            name="💰 Bet",
+            value=f"`{amount:,} {CURRENCY}`",
+            inline=False,
+        )
+        embed.set_footer(text="🟢 Hit  |  🛑 Stand  |  ⚡ Double Down")
 
         msg = await ctx.send(embed=embed)
         await msg.add_reaction("🟢")
         await msg.add_reaction("🛑")
+        await msg.add_reaction("⚡")
 
         blackjack_games[user_id] = {
             "amount": amount,
             "player": player,
             "dealer": dealer,
-            "message_id": msg.id
+            "message_id": msg.id,
+            "doubled": False,
         }
 
+        # Auto-check for natural blackjack
+        if pval == 21:
+            await self._resolve_blackjack(user_id, msg, ctx.guild)
+
     @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
+    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User):
         if user.bot:
             return
 
         game = blackjack_games.get(user.id)
-        if not game:
-            return
-
-        if reaction.message.id != game["message_id"]:
+        if not game or reaction.message.id != game["message_id"]:
             return
 
         try:
             await reaction.remove(user)
-        except:
+        except Exception:
             pass
 
         player = game["player"]
         dealer = game["dealer"]
         bet = game["amount"]
+        emoji = str(reaction.emoji)
+
+        # ⚡ DOUBLE DOWN
+        if emoji == "⚡" and not game["doubled"]:
+            balance = get_balance(user.id)
+            if balance < bet:
+                return  # silently fail if can't afford
+            game["amount"] = bet * 2
+            game["doubled"] = True
+            player.append(random.choice(CARDS))
+            await self._resolve_blackjack(user.id, reaction.message, reaction.message.guild)
+            return
 
         # 🟢 HIT
-        if str(reaction.emoji) == "🟢":
+        if emoji == "🟢":
             player.append(random.choice(CARDS))
             value = hand_value(player)
 
-            if value > 21:
-                set_balance(user.id, get_balance(user.id) - bet)
-                del blackjack_games[user.id]
-
-                embed = discord.Embed(
-                    title="💀 BUST!",
-                    description=f"{' '.join(player)} (`{value}`)\n❌ -{bet} {CURRENCY}",
-                    color=discord.Color.red()
-                )
-                return await reaction.message.edit(embed=embed)
+            if value >= 21:
+                await self._resolve_blackjack(user.id, reaction.message, reaction.message.guild)
+                return
 
             embed = reaction.message.embeds[0]
             embed.set_field_at(
                 0,
                 name="🧍 Your Hand",
-                value=f"{' '.join(player)} (`{value}`)",
-                inline=False
+                value=f"`{' '.join(player)}` → **{value}**",
+                inline=False,
             )
-            return await reaction.message.edit(embed=embed)
+            await reaction.message.edit(embed=embed)
+            return
 
         # 🛑 STAND
-        if str(reaction.emoji) == "🛑":
-            while hand_value(dealer) < 17:
-                dealer.append(random.choice(CARDS))
+        if emoji == "🛑":
+            await self._resolve_blackjack(user.id, reaction.message, reaction.message.guild)
 
-            p = hand_value(player)
-            d = hand_value(dealer)
-            balance = get_balance(user.id)
+    async def _resolve_blackjack(
+        self,
+        user_id: int,
+        message: discord.Message,
+        guild: discord.Guild,
+    ) -> None:
+        """Dealer plays out and resolves the blackjack game."""
+        game = blackjack_games.pop(user_id, None)
+        if not game:
+            return
 
-            if d > 21 or p > d:
-                set_balance(user.id, balance + bet)
-                result = f"🎉 YOU WIN +{bet} {CURRENCY}"
-                color = discord.Color.green()
-            elif d == p:
-                result = "😐 PUSH (tie)"
-                color = discord.Color.gold()
-            else:
-                set_balance(user.id, balance - bet)
-                result = f"💀 YOU LOSE -{bet} {CURRENCY}"
-                color = discord.Color.red()
+        player = game["player"]
+        dealer = game["dealer"]
+        bet = game["amount"]
 
-            del blackjack_games[user.id]
+        while hand_value(dealer) < 17:
+            dealer.append(random.choice(CARDS))
 
-            embed = discord.Embed(
-                title="🃏 Blackjack Result",
-                color=color
-            )
-            embed.add_field(
-                name="🧍 Your Hand",
-                value=f"{' '.join(player)} (`{p}`)",
-                inline=False
-            )
-            embed.add_field(
-                name="🤵 Dealer Hand",
-                value=f"{' '.join(dealer)} (`{d}`)",
-                inline=False
-            )
-            embed.add_field(name="📊 Result", value=result, inline=False)
+        p = hand_value(player)
+        d = hand_value(dealer)
+        balance = get_balance(user_id)
 
-            await reaction.message.edit(embed=embed)
+        natural_bj = p == 21 and len(player) == 2
 
-async def setup(bot):
+        if p > 21:
+            new_bal = balance - bet
+            title, color = "💀 Bust!", discord.Color.red()
+            result = f"❌ **-{bet:,} {CURRENCY}**"
+        elif natural_bj and d != 21:
+            payout = int(bet * 1.5)
+            new_bal = balance + payout
+            title, color = "🌙 Blackjack! Natural 21!", discord.Color.gold()
+            result = f"🎉 **+{payout:,} {CURRENCY}** (1.5x)"
+        elif d > 21 or p > d:
+            new_bal = balance + bet
+            title, color = "🎉 You Win!", discord.Color.green()
+            result = f"✅ **+{bet:,} {CURRENCY}**"
+        elif p == d:
+            new_bal = balance
+            title, color = "😐 Push — Tie", discord.Color.blurple()
+            result = "Bet returned."
+        else:
+            new_bal = balance - bet
+            title, color = "💀 Dealer Wins", discord.Color.red()
+            result = f"❌ **-{bet:,} {CURRENCY}**"
+
+        set_balance(user_id, new_bal)
+
+        embed = discord.Embed(title=title, color=color)
+        embed.add_field(
+            name="🧍 Your Hand",
+            value=f"`{' '.join(player)}` → **{p}**",
+            inline=True,
+        )
+        embed.add_field(
+            name="🤵 Dealer Hand",
+            value=f"`{' '.join(dealer)}` → **{d}**",
+            inline=True,
+        )
+        embed.add_field(name="📊 Result", value=result, inline=False)
+        embed.add_field(name="💰 New Balance", value=f"`{new_bal:,} {CURRENCY}`", inline=False)
+        embed.set_footer(text="MoonLight Casino 🃏")
+        await message.edit(embed=embed)
+
+
+# ---------- SETUP ----------
+
+async def setup(bot: commands.Bot):
     await bot.add_cog(Gambling(bot))
