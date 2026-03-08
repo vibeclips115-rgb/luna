@@ -1,8 +1,12 @@
 import sqlite3
+import os
 
 START_BALANCE = 1000
 
-conn = sqlite3.connect("moonlight.db", check_same_thread=False)
+# Persistent volume on Railway — falls back to local for dev
+DB_PATH = "/data/moonlight.db" if os.path.isdir("/data") else "moonlight.db"
+conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+print(f"📦 Database: {os.path.abspath(DB_PATH)}")
 
 
 # ---------- SCHEMA SETUP ----------
