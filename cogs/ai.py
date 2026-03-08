@@ -89,13 +89,16 @@ class AI(commands.Cog):
                 )
 
             reply = response.choices[0].message.content.strip()
+            print(f"[Groq reply] {repr(reply)}")
 
-            # Reply to the message directly
+            if not reply:
+                reply = "..."
+
             await message.reply(reply, mention_author=False)
 
         except Exception as e:
             print(f"[Groq error] {e}")
-            # Silent fail — Luna doesn't expose errors to users
+            await message.reply("something went wrong on my end.", mention_author=False)
 
     # ---------- LISTENER ----------
 
