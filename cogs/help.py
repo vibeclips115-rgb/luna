@@ -28,7 +28,7 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
                 ("💰 Page 3 — Economy",    "`$balance` `$daily` `$pay` `$leaderboard`"),
                 ("🎰 Page 4 — Gambling",   "`$dice` `$cf` `$bj` `$sw` `$fish` `$slots` `$rob`"),
                 ("🛡️ Page 5 — Moderation", "`$kick` `$ban` `$unban` `$softban` `$timeout` `$warn`\n`$warnings` `$clear` `$lock` `$unlock` `$slowmode` `$nick` `$userinfo` `$serverinfo` `$snipe` `$es`"),
-                ("⚙️ Page 6 — Utility",    "`$ping` `$help`"),
+                ("⚙️ Page 6 — Utility",    "`$hug` `$kiss` `$punch` `$slap` `$pat` `$poke` `$bite` `$wave`\n`$afk` `$av` `$ping` `$help`"),
                 ("📊 Page 7 — Statistics", "`$activity` `$stats` `$messages` `$topmessages` `$globalstats`"),
             ]
         ),
@@ -125,11 +125,21 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
         # 6 — Utility
         page(
             "⚙️ Utility Commands",
-            "The boring stuff that makes everything work",
+            "Actions, AFK, and general tools",
             0x1abc9c,
             [
-                ("`$ping`",    "Check bot latency in milliseconds."),
-                ("`$help`",    "You're already here. Impressive."),
+                ("`$hug [@user]`",   "Hug someone. Always appreciated."),
+                ("`$kiss [@user]`",  "Kiss someone. Bold move."),
+                ("`$punch [@user]`", "Punch someone. They probably deserved it."),
+                ("`$slap [@user]`",  "Slap someone. No mercy."),
+                ("`$pat [@user]`",   "Pat someone on the head."),
+                ("`$poke [@user]`",  "Poke someone until they respond."),
+                ("`$bite [@user]`",  "Bite someone. Feral behavior."),
+                ("`$wave [@user]`",  "Wave at someone. Civilized."),
+                ("`$afk [reason]`",  "Set your AFK status. Luna will notify anyone who mentions you."),
+                ("`$av [@user]`",    "Show a user's avatar. Aliases: `$avatar` `$pfp`"),
+                ("`$ping`",          "Check bot latency in milliseconds."),
+                ("`$help`",          "You're already here. Impressive."),
             ]
         ),
 
