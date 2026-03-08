@@ -560,7 +560,7 @@ class Gambling(commands.Cog):
 
     # ---------- BLACKJACK ----------
 
-    @commands.command(aliases=["bj", "blackjack"])
+    @commands.command(aliases=["blackjack"])
     async def bj(self, ctx: commands.Context, amount: int):
         user_id = ctx.author.id
         balance = get_balance(user_id)
@@ -728,7 +728,7 @@ class Gambling(commands.Cog):
         await message.edit(embed=embed)
 
 
-# ---------- SETUP -----------
+# ---------- SETUP ----------
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Gambling(bot))
