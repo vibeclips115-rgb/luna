@@ -20,7 +20,7 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
         # 0 — Overview
         page(
             "🌙 Luna — Command Index",
-            "Navigate with ◀️ ▶️ • Close with ❌ • Jump with 1️⃣–8️⃣",
+            "Navigate with ◀️ ▶️ • Close with ❌ • Jump with 1️⃣–7️⃣",
             0x9b59b6,
             [
                 ("🎭 Page 1 — Fun",        "`$luna` `$fortune` `$moonfact` `$roast` `$compliment`\n`$cosmic` `$luck` `$comfort` `$prophecy` `$8ball` `$rate`"),
@@ -29,8 +29,7 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
                 ("🎰 Page 4 — Gambling",   "`$dice` `$cf` `$bj` `$sw` `$fish` `$slots` `$rob`"),
                 ("🛡️ Page 5 — Moderation", "`$kick` `$ban` `$unban` `$softban` `$timeout` `$warn`\n`$warnings` `$clear` `$lock` `$unlock` `$slowmode` `$nick` `$userinfo` `$serverinfo` `$snipe` `$es`"),
                 ("⚙️ Page 6 — Utility",    "`$ping` `$help`"),
-                ("📊 Page 7 — Statistics", "`$activity` `$messages` `$topmessages`"),
-                ("🎵 Page 8 — Music",      "`$play` `$pause` `$resume` `$stop` `$skip`\n`$queue` `$volume` `$join` `$leave` `$clearqueue`"),
+                ("📊 Page 7 — Statistics", "`$activity` `$stats` `$messages` `$topmessages` `$globalstats`"),
             ]
         ),
 
@@ -137,45 +136,26 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
         # 7 — Statistics
         page(
             "📊 Statistics Commands",
-            "Track activity across the server",
+            "Track activity, earn ranks, and see who runs the server",
             0x3498db,
             [
-                ("`$activity [@user]`",           "See a user's message count and total voice time."),
-                ("`$messages` / `$topmessages`",  "Leaderboard of top users by message count."),
-            ]
-        ),
-
-        # 8 — Music
-        page(
-            "🎵 Music Commands",
-            "Play music in voice channels. Luna will DJ if you ask nicely.",
-            0x1db954,
-            [
-                ("`$play <song / URL>`",  "Play a song or add it to the queue. Supports YouTube search and links."),
-                ("`$pause`",             "Pause the current track."),
-                ("`$resume`",            "Resume a paused track."),
-                ("`$stop`",              "Stop playback and clear the entire queue."),
-                ("`$skip`",              "Skip the current track and play the next in queue."),
-                ("`$queue` / `$q`",      "Show up to 10 upcoming tracks with duration and requester."),
-                ("`$volume <1–100>`",    "Adjust playback volume live."),
-                ("`$join`",              "Join your voice channel. Moves if already elsewhere."),
-                ("`$leave`",             "Leave the voice channel and clear the queue."),
-                ("`$clearqueue`",        "Empty the queue without stopping the current track."),
-                ("`$now` / `$np`",       "Show what's currently playing."),
+                ("`$activity [@user]`",          "Full activity profile with rank, message bar, voice bar, and leaderboard position.\nAliases: `$stats` `$profile`"),
+                ("`$messages`",                  "Top 10 users by message count. Your position is highlighted.\nAliases: `$topmessages` `$msgstop`"),
+                ("`$globalstats`",               "Server-wide stats: total messages, tracked users, members in voice right now.\nAliases: `$serverstats` `$ss`"),
             ]
         ),
     ]
 
     # Add consistent footers with page numbers
     for i, embed in enumerate(pages):
-        label = "Index" if i == 0 else f"Page {i}/8"
+        label = "Index" if i == 0 else f"Page {i}/7"
         embed.set_footer(text=f"MoonLight • {label} • ◀️ ▶️ to navigate • ❌ to close")
 
     return pages
 
 
 # ---------- NUMBER REACTIONS ----------
-NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
+NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"]
 NAV_EMOJIS    = ["◀️", "▶️", "❌"]
 ALL_EMOJIS    = NAV_EMOJIS + NUMBER_EMOJIS
 
@@ -205,8 +185,6 @@ class Help(commands.Cog):
             "utility":    6,
             "stats":      7,
             "statistics": 7,
-            "music":      8,
-            "dj":         8,
         }
 
         current = 0
