@@ -28,7 +28,6 @@ async def fetch_info(query: str) -> dict | None:
     """Run yt_dlp in a thread so it doesn't block the bot."""
     loop = asyncio.get_event_loop()
 
-    # If it's not a URL, prefix with ytsearch1: explicitly
     if not query.startswith("http"):
         query = f"ytsearch1:{query}"
 
@@ -37,7 +36,13 @@ async def fetch_info(query: str) -> dict | None:
             return ydl.extract_info(query, download=False)
 
     try:
-        info = await loop.run_in_executor(None, _extract)
+        info = await asyncio.wait_for(
+            loop.run_in_executor(None, _extract),
+            timeout=15.0
+        )
+    except asyncio.TimeoutError:
+        print("[yt_dlp error] Timed out after 15s — YouTube may be blocking requests")
+        return None
     except Exception as e:
         print(f"[yt_dlp error] {e}")
         return None
