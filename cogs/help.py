@@ -1,151 +1,231 @@
+import asyncio
 import discord
 from discord.ext import commands
-import asyncio
+from datetime import datetime
+
+
+# ---------- PAGE DEFINITIONS ----------
+# Each page: (embed, category_emoji)
+
+def build_pages(bot: commands.Bot) -> list[discord.Embed]:
+
+    def page(title: str, description: str, color: int, fields: list[tuple[str, str]]) -> discord.Embed:
+        embed = discord.Embed(title=title, description=f"*{description}*", color=color, timestamp=datetime.utcnow())
+        for name, value in fields:
+            embed.add_field(name=name, value=value, inline=False)
+        embed.set_thumbnail(url=bot.user.display_avatar.url)
+        return embed
+
+    pages = [
+        # 0 — Overview
+        page(
+            "🌙 Luna — Command Index",
+            "Navigate with ◀️ ▶️ • Close with ❌ • Jump with 1️⃣–7️⃣",
+            0x9b59b6,
+            [
+                ("🎭 Page 1 — Fun",        "`$luna` `$fortune` `$moonfact` `$roast` `$compliment`\n`$cosmic` `$luck` `$comfort` `$prophecy` `$8ball` `$rate`"),
+                ("💞 Page 2 — Social",     "`$ship` `$marry` `$divorce` `$spouse`"),
+                ("💰 Page 3 — Economy",    "`$balance` `$daily` `$pay` `$leaderboard`"),
+                ("🎰 Page 4 — Gambling",   "`$dice` `$cf` `$bj` `$sw` `$fish` `$slots` `$rob`"),
+                ("🛡️ Page 5 — Moderation", "`$kick` `$ban` `$unban` `$mute` `$unmute` `$clear`"),
+                ("⚙️ Page 6 — Utility",    "`$ping` `$help` `$activity` `$messages`"),
+                ("📊 Page 7 — Statistics", "`$activity` `$messages` `$topmessages`"),
+            ]
+        ),
+
+        # 1 — Fun
+        page(
+            "🎭 Fun Commands",
+            "Chaotic, personality-driven, and very Luna",
+            0x9b59b6,
+            [
+                ("`$luna`",               "Luna introduces herself. Read it."),
+                ("`$fortune`",            "Luna tells your fortune. May or may not be real."),
+                ("`$moonfact`",           "A random fact about the Moon. Educational, barely."),
+                ("`$roast [@user]`",      "Roast someone. Or yourself if you're brave."),
+                ("`$compliment [@user]`", "Give someone a genuine compliment for once."),
+                ("`$cosmic`",             "Luna reads your cosmic energy. Unsettling."),
+                ("`$luck`",               "Your luck rating for today. Visual bar included."),
+                ("`$comfort`",            "Luna says something kind. She means it."),
+                ("`$prophecy`",           "A mysterious prophecy. It will happen."),
+                ("`$8ball <question>`",   "Ask the oracle anything. Yes/no only."),
+                ("`$rate <anything>`",    "Luna rates whatever you throw at her. Out of 10."),
+            ]
+        ),
+
+        # 2 — Social
+        page(
+            "💞 Social Commands",
+            "Relationships, proposals, and chaos",
+            0xe84393,
+            [
+                ("`$ship [@u1] [@u2]`", "Calculate compatibility between two people. Results may hurt."),
+                ("`$marry [@user]`",    "Propose to someone. They have 60s to accept or reject you."),
+                ("`$divorce`",          "End your marriage. Luna witnesses it. Says nothing."),
+                ("`$spouse [@user]`",   "Check who someone is married to. Or check yourself."),
+            ]
+        ),
+
+        # 3 — Economy
+        page(
+            "💰 Economy Commands",
+            "Build your MoonShards empire",
+            0xf1c40f,
+            [
+                ("`$balance [@user]`",    "Check your wallet — or spy on someone else's."),
+                ("`$daily`",              "Claim **5,000–15,000 MoonShards** every 24 hours."),
+                ("`$pay [@user] <amt>`",  "Transfer MoonShards to another user."),
+                ("`$leaderboard`",        "Top 10 richest players on the server. Are you on it?"),
+            ]
+        ),
+
+        # 4 — Gambling
+        page(
+            "🎰 Gambling Commands",
+            "High risk. Higher reward. Luna isn't responsible for your losses.",
+            0xe67e22,
+            [
+                ("`$dice <amt> <n1> <n2>`", "Guess both dice rolls.\n> Match 1 → **+1x** | Match 2 → **+2x** | Miss → **-1x**"),
+                ("`$cf <amt> <h/t>`",       "Coinflip. Heads or tails. 50/50.\n> Win → **+1x** | Lose → **-1x**"),
+                ("`$bj <amt>`",             "Blackjack. Hit 🟢, Stand 🛑, Double Down ⚡.\n> Natural 21 → **+1.5x**"),
+                ("`$sw <amt>`",             "Spin the wheel. Max **100,000**.\n> Multipliers: **-4x → +4x**"),
+                ("`$fish <amt>`",           "Cast your line. Max **100,000**.\n> Trash → **-4x** | Legendary → **+4x**"),
+                ("`$slots <amt>`",          "Pull the slot machine. Max **100,000**.\n> 🌙🌙🌙 → **+10x** jackpot"),
+                ("`$rob [@user]`",          "Attempt to rob someone. **40% success rate**.\n> Success → steal up to 25% | Fail → pay a fine"),
+            ]
+        ),
+
+        # 5 — Moderation
+        page(
+            "🛡️ Moderation Commands",
+            "Staff-only tools. Requires appropriate permissions.",
+            0xe74c3c,
+            [
+                ("`$kick [@user] [reason]`",   "Kick a member from the server."),
+                ("`$ban [@user] [reason]`",    "Permanently ban a member."),
+                ("`$unban <user#0000>`",        "Unban a previously banned user."),
+                ("`$mute [@user] [reason]`",   "Mute a member so they can't speak."),
+                ("`$unmute [@user]`",           "Restore a muted member's ability to speak."),
+                ("`$clear <amount>`",           "Bulk delete messages. Up to 100 at a time."),
+            ]
+        ),
+
+        # 6 — Utility
+        page(
+            "⚙️ Utility Commands",
+            "The boring stuff that makes everything work",
+            0x1abc9c,
+            [
+                ("`$ping`",    "Check bot latency in milliseconds."),
+                ("`$help`",    "You're already here. Impressive."),
+            ]
+        ),
+
+        # 7 — Statistics
+        page(
+            "📊 Statistics Commands",
+            "Track activity across the server",
+            0x3498db,
+            [
+                ("`$activity [@user]`",           "See a user's message count and total voice time."),
+                ("`$messages` / `$topmessages`",  "Leaderboard of top users by message count."),
+            ]
+        ),
+    ]
+
+    # Add consistent footers with page numbers
+    for i, embed in enumerate(pages):
+        label = "Index" if i == 0 else f"Page {i}/7"
+        embed.set_footer(text=f"MoonLight • {label} • ◀️ ▶️ to navigate • ❌ to close")
+
+    return pages
+
+
+# ---------- NUMBER REACTIONS ----------
+NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"]
+NAV_EMOJIS    = ["◀️", "▶️", "❌"]
+ALL_EMOJIS    = NAV_EMOJIS + NUMBER_EMOJIS
+
+
+# ---------- COG ----------
 
 class Help(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command()
-    async def help(self, ctx):
-        pages = []
+    @commands.command(aliases=["h", "commands"])
+    async def help(self, ctx: commands.Context, *, query: str = None):
+        """
+        Paginated help menu.
+        Optionally pass a category name: $help fun / economy / gambling / etc.
+        """
+        pages = build_pages(self.bot)
 
-        # ---------- PAGE 1 : FUN ----------
-        embed1 = discord.Embed(
-            title="🌙 Luna Help — Fun Commands",
-            description="Fun, chaotic, and personality-based commands",
-            color=0x9b59b6
-        )
-        embed1.add_field(name="$luna", value="Talk to Luna without a prefix", inline=False)
-        embed1.add_field(name="$fortune", value="Get your fortune told", inline=False)
-        embed1.add_field(name="$moonfact", value="Random moon-related facts", inline=False)
-        embed1.add_field(name="$roast", value="Roast yourself or others", inline=False)
-        embed1.add_field(name="$cosmic", value="Cosmic messages from Luna", inline=False)
-        embed1.add_field(name="$luck", value="Check your luck today", inline=False)
-        embed1.add_field(name="$comfort", value="Luna comforts you emotionally", inline=False)
-        embed1.add_field(name="$prophecy", value="Receive a mysterious prophecy", inline=False)
-        pages.append(embed1)
-
-        # ---------- PAGE 2 : SOCIAL ----------
-        embed2 = discord.Embed(
-            title="💞 Luna Help — Social Commands",
-            description="Relationships, drama, and chaos",
-            color=0xe84393
-        )
-        embed2.add_field(name="$ship", value="Ship two users together", inline=False)
-        embed2.add_field(name="$marry", value="Marry another user", inline=False)
-        embed2.add_field(name="$divorce", value="Divorce your current spouse", inline=False)
-        embed2.add_field(name="$spouse", value="Check who you're married to", inline=False)
-        pages.append(embed2)
-
-        # ---------- PAGE 3 : ECONOMY ----------
-        embed3 = discord.Embed(
-            title="💰 Luna Help — Economy Commands",
-            description="Money, rewards, and grinding",
-            color=0xf1c40f
-        )
-        embed3.add_field(name="$bal / $balance / $networth", value="Check your balance", inline=False)
-        embed3.add_field(name="$daily", value="Claim daily rewards", inline=False)
-        embed3.add_field(name="$pay", value="Send money to another user", inline=False)
-        embed3.add_field(name="$leaderboard / $lb / $top", value="Top richest users", inline=False)
-        pages.append(embed3)
-
-        # ---------- PAGE 4 : GAMBLING ----------
-        embed4 = discord.Embed(
-            title="🎰 Luna Help — Gambling Commands",
-            description="High risk, high reward",
-            color=0xe67e22
-        )
-        embed4.add_field(name="$d", value="Roll a dice", inline=False)
-        embed4.add_field(name="$cf", value="Coinflip gamble", inline=False)
-        embed4.add_field(name="$bj", value="Play blackjack", inline=False)
-        embed4.add_field(name="$sw", value="Slot machine gamble", inline=False)
-        embed4.add_field(name="$fish", value="Go fishing for rewards", inline=False)
-        pages.append(embed4)
-
-        # ---------- PAGE 5 : MODERATION ----------
-        embed5 = discord.Embed(
-            title="🛡️ Luna Help — Moderation Commands",
-            description="Admin & staff tools",
-            color=0xe74c3c
-        )
-        embed5.add_field(name="$kick", value="Kick a member", inline=False)
-        embed5.add_field(name="$ban", value="Ban a member", inline=False)
-        embed5.add_field(name="$unban", value="Unban a user", inline=False)
-        embed5.add_field(name="$mute", value="Mute a member", inline=False)
-        embed5.add_field(name="$unmute", value="Unmute a member", inline=False)
-        embed5.add_field(name="$clear / $purge", value="Delete messages", inline=False)
-        pages.append(embed5)
-
-        # ---------- PAGE 6 : UTILITY ----------
-        embed6 = discord.Embed(
-            title="⚙️ Luna Help — Utility Commands",
-            description="Useful info & tools",
-            color=0x1abc9c
-        )
-        embed6.add_field(name="$ping", value="Check bot latency", inline=False)
-        embed6.add_field(name="$help", value="Show this help menu", inline=False)
-        pages.append(embed6)
-
-        # ---------- PAGE 7 : STATISTICS ----------
-        embed7 = discord.Embed(
-        title="📊 Luna Help — Statistics Commands",
-        description="User activity & server analytics",
-        color=0x3498db
-        )
-
-        embed7.add_field(
-        name="$activity [user]",
-        value="Shows how many messages a user has sent and their voice time",
-        inline=False
-        )
-
-        embed7.add_field(
-        name="$messages / $msgstop / $topmessages",
-        value="Displays the top users by message count",
-        inline=False
-        )
-
-        pages.append(embed7)
+        # If user typed $help gambling etc, jump straight there
+        category_map = {
+            "fun":        1,
+            "social":     2,
+            "economy":    3,
+            "gambling":   4,
+            "moderation": 5,
+            "mod":        5,
+            "utility":    6,
+            "stats":      7,
+            "statistics": 7,
+        }
 
         current = 0
+        if query:
+            current = category_map.get(query.lower().strip(), 0)
+
         msg = await ctx.send(embed=pages[current])
 
-        reactions = ["◀️", "▶️", "❌"]
-        for r in reactions:
-            await msg.add_reaction(r)
+        for emoji in ALL_EMOJIS:
+            await msg.add_reaction(emoji)
 
-        def check(reaction, user):
+        def check(reaction: discord.Reaction, user: discord.User) -> bool:
             return (
-                user == ctx.author
+                user.id == ctx.author.id
                 and reaction.message.id == msg.id
-                and str(reaction.emoji) in reactions
+                and str(reaction.emoji) in ALL_EMOJIS
             )
 
         while True:
             try:
                 reaction, user = await self.bot.wait_for(
-                    "reaction_add", timeout=60.0, check=check
+                    "reaction_add", timeout=90.0, check=check
                 )
+                emoji = str(reaction.emoji)
 
-                if str(reaction.emoji) == "▶️":
+                # Navigation
+                if emoji == "▶️":
                     current = (current + 1) % len(pages)
-                    await msg.edit(embed=pages[current])
-
-                elif str(reaction.emoji) == "◀️":
+                elif emoji == "◀️":
                     current = (current - 1) % len(pages)
-                    await msg.edit(embed=pages[current])
-
-                elif str(reaction.emoji) == "❌":
+                elif emoji == "❌":
                     await msg.delete()
-                    break
+                    return
 
-                await msg.remove_reaction(reaction, user)
+                # Number jumps (1️⃣ = page 1, etc.)
+                elif emoji in NUMBER_EMOJIS:
+                    current = NUMBER_EMOJIS.index(emoji) + 1  # +1 because 0 is index
+
+                await msg.edit(embed=pages[current])
+
+                try:
+                    await msg.remove_reaction(reaction, user)
+                except discord.Forbidden:
+                    pass
 
             except asyncio.TimeoutError:
-                await msg.clear_reactions()
+                try:
+                    await msg.clear_reactions()
+                except discord.Forbidden:
+                    pass
                 break
 
 
-async def setup(bot):
+# ---------- SETUP ----------
+
+async def setup(bot: commands.Bot):
     await bot.add_cog(Help(bot))
