@@ -728,7 +728,7 @@ class Gambling(commands.Cog):
         await message.edit(embed=embed)
 
 
-# ---------- SETUP ----------
+# ---------- SETUP -----------
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Gambling(bot))
