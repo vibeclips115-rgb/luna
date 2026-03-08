@@ -50,6 +50,34 @@ You are Luna, a Discord bot, and you are genuinely irritated right now.
 
 # ---------- STATE ----------
 last_trigger: dict[int, float] = {}
+daily_counts: dict[int, dict] = {}  # user_id → {count, date}
+
+DAILY_LIMIT = 10  # max AI responses per user per day
+
+
+def _check_limit(user_id: int) -> bool:
+    """Returns True if user has hit their daily limit."""
+    from datetime import date
+    today = str(date.today())
+    entry = daily_counts.get(user_id)
+
+    if not entry or entry["date"] != today:
+        daily_counts[user_id] = {"count": 0, "date": today}
+        return False
+
+    return entry["count"] >= DAILY_LIMIT
+
+
+def _increment_count(user_id: int) -> None:
+    """Increment the user's daily count."""
+    from datetime import date
+    today = str(date.today())
+    entry = daily_counts.get(user_id)
+
+    if not entry or entry["date"] != today:
+        daily_counts[user_id] = {"count": 1, "date": today}
+    else:
+        entry["count"] += 1
 
 
 # ---------- COG ----------
@@ -70,6 +98,20 @@ class AI(commands.Cog):
         if now - last_trigger.get(user_id, 0) < LUNA_COOLDOWN:
             return
         last_trigger[user_id] = now
+
+        # Owner bypass — no limits for Ryuken
+        if user_id != OWNER_ID:
+            if _check_limit(user_id):
+                await message.reply(
+                    "i don't even wanna reply to you anymore",
+                    mention_author=False
+                )
+                await message.channel.send(
+                    f"-# API LIMIT REACHED",
+                    delete_after=5
+                )
+                return
+            _increment_count(user_id)
 
         # Pick system prompt
         if user_id == OWNER_ID:
