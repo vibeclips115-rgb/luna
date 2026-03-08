@@ -8,10 +8,12 @@ from collections import deque
 
 YDL_OPTIONS = {
     "format": "bestaudio/best",
-    "quiet": True,
+    "quiet": False,  # show errors in logs
+    "no_warnings": False,
     "noplaylist": True,
-    "default_search": "ytsearch",
+    "default_search": "ytsearch1",
     "source_address": "0.0.0.0",
+    "extract_flat": False,
 }
 
 FFMPEG_OPTIONS = {
@@ -25,16 +27,29 @@ FFMPEG_OPTIONS = {
 async def fetch_info(query: str) -> dict | None:
     """Run yt_dlp in a thread so it doesn't block the bot."""
     loop = asyncio.get_event_loop()
-    with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-        try:
-            info = await loop.run_in_executor(
-                None, lambda: ydl.extract_info(query, download=False)
-            )
-        except yt_dlp.utils.DownloadError:
-            return None
+
+    # If it's not a URL, prefix with ytsearch1: explicitly
+    if not query.startswith("http"):
+        query = f"ytsearch1:{query}"
+
+    def _extract():
+        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+            return ydl.extract_info(query, download=False)
+
+    try:
+        info = await loop.run_in_executor(None, _extract)
+    except Exception as e:
+        print(f"[yt_dlp error] {e}")
+        return None
+
+    if info is None:
+        return None
 
     if "entries" in info:
-        info = info["entries"][0]
+        entries = info["entries"]
+        if not entries:
+            return None
+        info = entries[0]
 
     return info
 
@@ -115,14 +130,20 @@ class Music(commands.Cog):
         if not ctx.voice_client:
             await ctx.author.voice.channel.connect()
 
-        async with ctx.typing():
-            info = await fetch_info(query)
+        await ctx.send("🔍 Searching...")
+
+        info = await fetch_info(query)
 
         if not info:
-            return await ctx.send("❌ Couldn't find that track. Try a different search.")
+            return await ctx.send("❌ Couldn't find that track. Try a different search or a direct YouTube URL.")
+
+        url = info.get("url")
+        if not url:
+            print(f"[music] No URL in info: {info.keys()}")
+            return await ctx.send("❌ Found the track but couldn't extract a playable URL.")
 
         track = {
-            "url":       info["url"],
+            "url":       url,
             "title":     info.get("title", "Unknown"),
             "duration":  info.get("duration", 0),
             "webpage":   info.get("webpage_url", ""),
