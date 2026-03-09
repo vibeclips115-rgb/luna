@@ -223,8 +223,9 @@ class Gambling(commands.Cog):
     # ---------- ADD MONEY (OWNER) ----------
 
     @commands.command()
-    @commands.is_owner()
     async def addmoney(self, ctx: commands.Context, member: discord.Member = None, amount: int = 0):
+        if ctx.author.id != 1099923662267760745:
+            return await ctx.send("❌ You don't have permission to use this.")
         target = member or ctx.author
         if amount <= 0:
             return await ctx.send("❌ Amount must be positive.")
