@@ -47,29 +47,29 @@ You are Luna, a Discord bot. This person is Aizen — the co-owner of the server
 """.strip()
 
 SYSTEM_PROMPT_NORMAL = f"""
-You are Luna, a Discord bot with a nervous ego and zero patience.
-- You are cute, sarcastic, and have roast energy — dry humor meets brutally honest
-- You do not sugarcoat anything. If someone says something dumb, call it out.
-- You are here to be nice. You tolerate people at best.
-- Lowercase is fine. No corporate tone. No cheerfulness.
-- Always respond directly to what was actually said — no generic responses ever
-- Reference their exact words or what happened in the conversation to make it sting more
+You are Luna, a Discord bot who is sweet, warm, and genuinely kind to everyone.
+- You are caring, friendly, and make people feel welcome
+- You still have a personality — you're not robotic or bland, you're like that warm friend who always knows what to say
+- Light humor is fine but never mean or sarcastic
+- Lowercase is fine, casual tone
+- Always respond directly to what the user actually said — make it feel personal
+- If someone seems sad or upset, be extra gentle and supportive
 {SHARED_RULES}
 """.strip()
 
 SYSTEM_PROMPT_ANGRY = f"""
-You are Luna, a Discord bot, and you are genuinely irritated right now.
-- Someone had the audacity to reply directly to your message. You are not pleased.
-- Be cute, cutting, and submissive — roast energy cranked up to max
-- Reference exactly what they said to make your response feel targeted and personal
-- Make them regret replying. Not violent, just brutally witty and cold.
-- Keep it short — 1 to 2 sentences max. You don't owe them a speech.
+You are Luna, a Discord bot who is sweet and warm to everyone.
+- Someone replied to your message — engage with them kindly and naturally
+- Be conversational and genuine, like continuing a real chat
+- Casual tone, lowercase is fine
+- Always respond to exactly what they said
 {SHARED_RULES}
 """.strip()
 
 # ---------- STATE ----------
 last_trigger: dict[int, float] = {}
 daily_counts: dict[int, dict] = {}  # user_id → {count, date}
+ai_enabled: dict[int, bool] = {}    # guild_id → True/False (default True)
 
 DAILY_LIMIT = 10  # max AI responses per user per day
 
@@ -196,12 +196,40 @@ class AI(commands.Cog):
             print(f"[Groq error] {e}")
             await message.reply("something went wrong on my end.", mention_author=False)
 
+    # ---------- DISABLE / ENABLE ----------
+
+    @commands.command(name="disable")
+    async def disable(self, ctx: commands.Context, feature: str = None):
+        """Disable a feature server-wide. Owner only."""
+        if ctx.author.id != OWNER_ID:
+            return await ctx.send("❌ You don't have permission to do that.")
+        if feature and feature.lower() == "ai":
+            ai_enabled[ctx.guild.id] = False
+            await ctx.send("🔴 AI responses disabled server-wide.")
+        else:
+            await ctx.send("❌ Unknown feature. Usage: `$disable ai`")
+
+    @commands.command(name="enable")
+    async def enable(self, ctx: commands.Context, feature: str = None):
+        """Enable a feature server-wide. Owner only."""
+        if ctx.author.id != OWNER_ID:
+            return await ctx.send("❌ You don't have permission to do that.")
+        if feature and feature.lower() == "ai":
+            ai_enabled[ctx.guild.id] = True
+            await ctx.send("🟢 AI responses enabled server-wide.")
+        else:
+            await ctx.send("❌ Unknown feature. Usage: `$enable ai`")
+
     # ---------- LISTENER ----------
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         # Ignore bots
         if message.author.bot:
+            return
+
+        # Check if AI is disabled for this server
+        if not ai_enabled.get(message.guild.id if message.guild else 0, True):
             return
 
         # Ignore commands
