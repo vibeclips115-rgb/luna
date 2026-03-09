@@ -301,6 +301,8 @@ class Fun(commands.Cog):
             return await ctx.send("❌ Roast who? Mention someone.")
         if member.id == ctx.author.id:
             return await ctx.send("💀 You really came here to roast yourself?")
+        if member.bot:
+            return await ctx.send("i roast people, not myself. nice try.")
 
         embed = discord.Embed(
             description=f"🔥 {member.mention} {random.choice(ROASTS)}",
@@ -314,6 +316,8 @@ class Fun(commands.Cog):
     async def compliment(self, ctx: commands.Context, member: discord.Member = None):
         """Give someone a genuine compliment."""
         member = member or ctx.author
+        if member.bot:
+            return await ctx.send("obviously. i'm literally perfect.")
         embed = discord.Embed(
             description=f"💜 {member.mention} {random.choice(COMPLIMENTS)}",
             color=discord.Color.purple(),
