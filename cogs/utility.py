@@ -342,83 +342,79 @@ class Utility(commands.Cog):
 
         # Build image synchronously inside executor so event loop stays free
         def build_card() -> io.BytesIO:
-            W, H = 900, 520
-            AVATAR_SIZE      = 130
-            BG_COLOR         = (10, 10, 15)
-            ACCENT           = (110, 60, 180)
-            ACCENT_LIGHT     = (160, 110, 230)
-            TEXT_COLOR       = (230, 220, 255)
-            NAME_COLOR       = (190, 155, 255)
-            DIM_COLOR        = (65, 45, 100)
-            QUOTE_MARK_COLOR = (80, 45, 140)
+            import subprocess, os
 
-            # Use Noto fonts for full Unicode support (Arabic, emoji, etc.)
-            # fc-match will pick the best available font for the given name
+            W, H        = 1000, 480
+            BG_COLOR    = (8, 8, 10)
+            TEXT_COLOR  = (245, 242, 255)
+            NAME_COLOR  = (180, 180, 180)
+            DIM_COLOR   = (55, 45, 80)
+            ACCENT      = (110, 60, 180)
+
+            # Font loader — tries NotoSans first (full Unicode), then DejaVu
             def load(bold: bool, size: int) -> ImageFont.FreeTypeFont:
                 candidates = [
-                    "NotoSans-Bold" if bold else "NotoSans-Regular",
+                    "NotoSans:Bold" if bold else "NotoSans",
                     "DejaVuSans-Bold" if bold else "DejaVuSans",
                 ]
                 for name in candidates:
                     try:
-                        r = __import__('subprocess').run(
+                        r = subprocess.run(
                             ["fc-match", "--format=%{file}", name],
                             capture_output=True, text=True
                         )
                         path = r.stdout.strip()
-                        if path and __import__('os').path.exists(path):
+                        if path and os.path.exists(path):
                             return ImageFont.truetype(path, size)
                     except Exception:
                         pass
                 return ImageFont.load_default(size=size)
 
-            font_quote  = load(False, 36)
-            font_mark   = load(True,  96)
-            font_name   = load(True,  28)
-            font_footer = load(False, 20)
+            font_quote  = load(False, 46)   # big, clean quote text
+            font_name   = load(False, 26)   # subtle attribution
+            font_footer = load(False, 17)
 
-            img = Image.new("RGB", (W, H), BG_COLOR)
+            # ── Canvas ──────────────────────────────────────────
+            img  = Image.new("RGB", (W, H), BG_COLOR)
 
-            # Subtle corner glow blobs
-            for radius, opacity in [(300, 18), (200, 12), (120, 8)]:
-                blob = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-                bd   = ImageDraw.Draw(blob)
-                bd.ellipse([-radius // 2, -radius // 2, radius, radius], fill=(*ACCENT, opacity))
-                bd.ellipse([W - radius, H - radius, W + radius // 2, H + radius // 2], fill=(*ACCENT, opacity))
-                img = Image.alpha_composite(img.convert("RGBA"), blob).convert("RGB")
+            # Avatar: fill entire left half, desaturated, fading right into black
+            AV_W = W // 2
+            avatar_raw = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+            avatar_raw = avatar_raw.resize((AV_W, H), Image.LANCZOS)
+
+            # Desaturate avatar
+            gray = avatar_raw.convert("L").convert("RGBA")
+            avatar_raw = Image.blend(avatar_raw, gray, alpha=0.75)
+
+            # Horizontal fade mask: opaque on left, transparent on right
+            fade = Image.new("L", (AV_W, H))
+            for x in range(AV_W):
+                # Start fading at 40% width, fully transparent at 95%
+                t = max(0.0, (x / AV_W - 0.40) / 0.55)
+                fade.putpixel((x, 0), 0)  # init
+            fade_data = []
+            for y in range(H):
+                for x in range(AV_W):
+                    t = max(0.0, min(1.0, (x / AV_W - 0.40) / 0.55))
+                    fade_data.append(int(255 * (1.0 - t)))
+            fade.putdata(fade_data)
+
+            avatar_raw.putalpha(fade)
+            img.paste(avatar_raw, (0, 0), avatar_raw)
 
             draw = ImageDraw.Draw(img)
 
-            # Opening quote mark
-            draw.text((44, 18), "\u201c", font=font_mark, fill=QUOTE_MARK_COLOR)
+            # ── Right side text area ─────────────────────────────
+            TEXT_X     = W // 2 + 20   # left edge of text column
+            TEXT_W     = W - TEXT_X - 50  # available width
 
-            # Circular avatar with glow ring
-            avatar_img = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize((AVATAR_SIZE, AVATAR_SIZE))
-            mask = Image.new("L", (AVATAR_SIZE, AVATAR_SIZE), 0)
-            ImageDraw.Draw(mask).ellipse([0, 0, AVATAR_SIZE, AVATAR_SIZE], fill=255)
-            avatar_img.putalpha(mask)
-
-            av_x = (W - AVATAR_SIZE) // 2
-            av_y = 55
-
-            draw.ellipse([av_x - 6, av_y - 6, av_x + AVATAR_SIZE + 6, av_y + AVATAR_SIZE + 6], outline=ACCENT, width=3)
-            draw.ellipse([av_x - 2, av_y - 2, av_x + AVATAR_SIZE + 2, av_y + AVATAR_SIZE + 2], outline=ACCENT_LIGHT, width=1)
-            img.paste(avatar_img, (av_x, av_y), mask)
-            draw = ImageDraw.Draw(img)
-
-            # Username — strip non-renderable chars as last resort fallback
-            safe_username = username.encode("utf-8", errors="replace").decode("utf-8")
-            bbox   = draw.textbbox((0, 0), safe_username, font=font_name)
-            name_w = bbox[2] - bbox[0]
-            draw.text(((W - name_w) // 2, av_y + AVATAR_SIZE + 16), safe_username, font=font_name, fill=NAME_COLOR)
-
-            # Word-wrapped quote text centered at bottom
+            # Word-wrap quote
             words = text.split()
             lines, line = [], ""
             for word in words:
                 test = (line + " " + word).strip()
                 bbox = draw.textbbox((0, 0), test, font=font_quote)
-                if bbox[2] - bbox[0] > W - 130:
+                if bbox[2] - bbox[0] > TEXT_W:
                     if line:
                         lines.append(line)
                     line = word
@@ -427,22 +423,28 @@ class Utility(commands.Cog):
             if line:
                 lines.append(line)
 
-            line_h  = 50
-            total_h = len(lines) * line_h
-            text_y  = H - total_h - 58
+            line_h   = 58
+            total_h  = len(lines) * line_h
+            # Attribution line height
+            attr_h   = 36
+            gap      = 18
+            block_h  = total_h + gap + attr_h
+            text_y   = (H - block_h) // 2  # vertically centered
 
             for ln in lines:
-                bbox = draw.textbbox((0, 0), ln, font=font_quote)
-                lw   = bbox[2] - bbox[0]
-                draw.text(((W - lw) // 2, text_y), ln, font=font_quote, fill=TEXT_COLOR)
+                draw.text((TEXT_X, text_y), ln, font=font_quote, fill=TEXT_COLOR)
                 text_y += line_h
 
-            # Divider + footer
-            draw.line([(80, H - 40), (W - 80, H - 40)], fill=DIM_COLOR, width=1)
+            # Attribution: "— username"
+            text_y += gap
+            attr    = f"\u2014 {username}"
+            draw.text((TEXT_X + 4, text_y), attr, font=font_name, fill=NAME_COLOR)
+
+            # Subtle bottom footer
             footer = "MoonLight"
             bbox   = draw.textbbox((0, 0), footer, font=font_footer)
             fw     = bbox[2] - bbox[0]
-            draw.text(((W - fw) // 2, H - 32), footer, font=font_footer, fill=DIM_COLOR)
+            draw.text(((W - fw) // 2, H - 26), footer, font=font_footer, fill=DIM_COLOR)
 
             buf = io.BytesIO()
             img.save(buf, format="PNG")
