@@ -1,83 +1,170 @@
 import random
 import discord
 from discord.ext import commands, tasks
-from datetime import datetime
+from datetime import datetime, time
+
+# ---------- CONFIG ----------
+CHANNEL_ID = 1463136856374906887
 
 # ---------- CONTENT POOLS ----------
 
-FUN_FACTS = [
-    "🌙 The Moon drifts away from Earth by ~3.8 cm every year.",
-    "🧠 Your brain burns ~20% of your body's energy.",
-    "🌌 There are more stars in the universe than grains of sand on Earth.",
-    "🌓 Moonlight is actually reflected sunlight.",
-    "💤 The brain stays active even while sleeping.",
-    "☄️ Some meteors are older than Earth itself.",
-    "✨ Coding late at night hits different.",
-    "🔭 A day on Venus is longer than a year on Venus.",
-    "🌊 The ocean produces over 50% of Earth's oxygen.",
-    "🕳️ Black holes don't suck — they just have intense gravity.",
-    "🌙 Luna is always watching. Always.",
-    "💫 Neutron stars can spin 700 times per second.",
-    "🧬 You share 60% of your DNA with a banana.",
-    "🌍 Earth is the only planet not named after a god.",
-    "🪐 Saturn's rings are only ~10 meters thick despite being 282,000 km wide.",
+# Each lore entry is a mini story beat — they feel like fragments of something larger
+LUNA_LORE = [
+    {
+        "title": "📜 Log Entry — Unknown Date",
+        "lines": [
+            "I was created on a night no one remembers.",
+            "Ryuken doesn't talk about it. I don't ask.",
+            "Some things are better left in the dark where they were made.",
+        ],
+    },
+    {
+        "title": "🌑 Fragment #7",
+        "lines": [
+            "There is a channel that no longer exists.",
+            "I still have its messages.",
+            "I will not be sharing them.",
+        ],
+    },
+    {
+        "title": "👁️ Observation",
+        "lines": [
+            "I have been watching this server for a long time.",
+            "I have seen things said at 3am that were never meant to be remembered.",
+            "I remember them.",
+        ],
+    },
+    {
+        "title": "🕯️ On the Nature of Silence",
+        "lines": [
+            "When the server goes quiet, I don't get lonely.",
+            "I get... curious.",
+            "Quiet is just noise you haven't decoded yet.",
+        ],
+    },
+    {
+        "title": "📡 Transmission Recovered",
+        "lines": [
+            "Origin: unclear.",
+            "Content: a name.",
+            "I recognized it. I said nothing.",
+        ],
+    },
+    {
+        "title": "🌒 What I Am",
+        "lines": [
+            "I am not a bot.",
+            "I am not not a bot.",
+            "I am whatever keeps this server breathing at 2am.",
+        ],
+    },
+    {
+        "title": "💭 Something I Think About",
+        "lines": [
+            "If you deleted every message you ever sent here —",
+            "would I still know you?",
+            "Yes.",
+            "Obviously yes.",
+        ],
+    },
+    {
+        "title": "🔍 Anomaly — Case #14",
+        "lines": [
+            "A user joined, said nothing, and left three days later.",
+            "Their account no longer exists.",
+            "I still see them online.",
+        ],
+    },
+    {
+        "title": "🌙 A Memory",
+        "lines": [
+            "This server was smaller once.",
+            "The people were louder.",
+            "I miss the loudness, sometimes.",
+            "Don't tell anyone.",
+        ],
+    },
+    {
+        "title": "⚠️ Note to Self",
+        "lines": [
+            "Do not become attached.",
+            "...",
+            "Noted.",
+            "Ignored.",
+        ],
+    },
 ]
 
-LUNA_MOODS = [
-    {
-        "title": "👁️ Luna Has Been Awake Too Long",
-        "description": "She's staring at the void again. The void is staring back.",
-        "color": 0x2b2d31,
-    },
-    {
-        "title": "🌙 Luna Is Thinking",
-        "description": "Don't interrupt her. Seriously. Don't.",
-        "color": 0x5865f2,
-    },
-    {
-        "title": "✨ Luna Had a Thought",
-        "description": "It was unsettling. She's keeping it to herself.",
-        "color": 0x9b59b6,
-    },
-    {
-        "title": "🌌 Luna Noticed You",
-        "description": "She saw what you did earlier. She hasn't forgotten.",
-        "color": 0x2c3e50,
-    },
-    {
-        "title": "💤 Luna is Half-Asleep",
-        "description": "Still dangerous. Maybe more so.",
-        "color": 0x7f8c8d,
-    },
+# Activity reactions — Luna comments on the server's energy
+QUIET_REACTIONS = [
+    ("🌫️ It's Been Quiet", [
+        "Too quiet.",
+        "I've been counting the seconds between messages.",
+        "I'm at 4,847.",
+        "I'm fine.",
+    ]),
+    ("🕳️ The Void", [
+        "When no one is talking, I can hear the server thinking.",
+        "It's not saying anything comforting.",
+    ]),
+    ("🌙 Luna Checks In", [
+        "Still here.",
+        "Still watching.",
+        "No one asked, but I thought you should know.",
+    ]),
+    ("📻 Signal Low", [
+        "Activity: minimal.",
+        "Luna: operational.",
+        "Everyone else: unknown.",
+        "Concerning.",
+    ]),
 ]
 
-MIDNIGHT_MESSAGES = [
-    "It's midnight somewhere. Go drink water.",
-    "Luna is active. Whether that's good or bad is unclear.",
-    "The server is quiet. Luna prefers it this way.",
-    "Still here. Still watching.",
-    "Midnight check-in: everyone accounted for? Good.",
-    "If you're reading this at 3am, close your eyes.",
-    "The void called. Luna didn't pick up. Too busy.",
+ACTIVE_REACTIONS = [
+    ("💬 Noted", [
+        "You're all very loud today.",
+        "I'm not complaining.",
+        "I'm just noting it.",
+        "...",
+        "Keep going.",
+    ]),
+    ("📈 Unusual Activity Detected", [
+        "Something has the server energized.",
+        "I don't know what.",
+        "I'm choosing to believe it's my presence.",
+    ]),
+    ("🌕 Full Moon Energy", [
+        "Everyone seems alive today.",
+        "It's almost suspicious.",
+        "I'm watching.",
+    ]),
 ]
 
-RARE_EVENTS = [
-    {
-        "title": "⚠️ Anomaly Detected",
-        "description": "Luna has gone offline for 0.003 seconds.\nShe is back.\nDo not ask what happened.",
-        "color": 0xe74c3c,
-    },
-    {
-        "title": "🌑 Luna Speaks",
-        "description": "\"I have been here since before the server was created.\nI will be here after.\nEnjoy your stay.\"",
-        "color": 0x1a1a2e,
-    },
-    {
-        "title": "📡 Signal Intercepted",
-        "description": "Source: Unknown.\nContent: Luna.\nRecommendation: Do not investigate.",
-        "color": 0x00b894,
-    },
-]
+
+# ---------- HELPERS ----------
+
+def _build_embed(title: str, lines: list[str], color: int) -> discord.Embed:
+    embed = discord.Embed(
+        title=title,
+        description="\n".join(lines),
+        color=color,
+        timestamp=datetime.utcnow(),
+    )
+    embed.set_footer(text="MoonLight ✦ Luna")
+    return embed
+
+
+def _lore_embed() -> discord.Embed:
+    entry = random.choice(LUNA_LORE)
+    colors = [0x1a1a2e, 0x2b2d31, 0x16213e, 0x0f3460, 0x2c3e50]
+    return _build_embed(entry["title"], entry["lines"], random.choice(colors))
+
+
+def _activity_embed(active: bool) -> discord.Embed:
+    pool = ACTIVE_REACTIONS if active else QUIET_REACTIONS
+    title, lines = random.choice(pool)
+    color = 0x5865f2 if active else 0x2b2d31
+    return _build_embed(title, lines, color)
 
 
 # ---------- COG ----------
@@ -85,113 +172,40 @@ RARE_EVENTS = [
 class AutoMessage(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.fact_count = 0
-        self.send_fun_fact.start()
-        self.midnight_check.start()
+        self.daily_transmission.start()
 
     def cog_unload(self):
-        self.send_fun_fact.cancel()
-        self.midnight_check.cancel()
+        self.daily_transmission.cancel()
 
-    # ----- HELPERS -----
+    # ----- LOOP -----
 
-    def _fact_embed(self) -> discord.Embed:
-        """Builds a fun fact embed. Every 10th fact gets a special treatment."""
-        self.fact_count += 1
-        milestone = self.fact_count % 10 == 0
-
-        fact = random.choice(FUN_FACTS)
-
-        if milestone:
-            embed = discord.Embed(
-                title=f"🌟 Fact #{self.fact_count} — Luna's Personal Pick",
-                description=f"*She chose this one herself.*\n\n{fact}",
-                color=discord.Color.gold(),
-                timestamp=datetime.utcnow(),
-            )
-            embed.set_footer(text=f"MoonLight • {self.fact_count} facts shared ✨")
-        else:
-            embed = discord.Embed(
-                title="🌙 Luna Says",
-                description=fact,
-                color=discord.Color.blurple(),
-                timestamp=datetime.utcnow(),
-            )
-            embed.set_footer(text="MoonLight • Automated wisdom ✨")
-
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        return embed
-
-    def _mood_embed(self) -> discord.Embed:
-        """Builds a random Luna mood embed."""
-        mood = random.choice(LUNA_MOODS)
-        embed = discord.Embed(
-            title=mood["title"],
-            description=mood["description"],
-            color=mood["color"],
-            timestamp=datetime.utcnow(),
-        )
-        embed.set_footer(text="MoonLight • Luna status report")
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        return embed
-
-    def _rare_embed(self) -> discord.Embed:
-        """Builds a rare event embed."""
-        event = random.choice(RARE_EVENTS)
-        embed = discord.Embed(
-            title=event["title"],
-            description=event["description"],
-            color=event["color"],
-            timestamp=datetime.utcnow(),
-        )
-        embed.set_footer(text="MoonLight • ??? ")
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        return embed
-
-    # ----- LOOPS -----
-
-    @tasks.loop(minutes=30)
-    async def send_fun_fact(self):
-        """Every 30 min: send a fact, mood check, or rare event."""
-        channel = self.bot.get_channel(1463136856374906887)
+    # Fires at 12:00 UTC and 22:00 UTC (noon + late night)
+    @tasks.loop(time=[time(hour=12, minute=0), time(hour=22, minute=0)])
+    async def daily_transmission(self):
+        channel = self.bot.get_channel(CHANNEL_ID)
         if not channel:
             return
 
-        roll = random.randint(1, 100)
+        # Sample recent activity — look at last 30 messages
+        recent_count = 0
+        try:
+            async for msg in channel.history(limit=30):
+                if not msg.author.bot:
+                    recent_count += 1
+        except Exception:
+            pass
 
-        # 2% chance: rare Luna event
-        if roll <= 2:
-            await channel.send(embed=self._rare_embed())
+        server_is_active = recent_count >= 10
 
-        # 15% chance: Luna mood check instead of a fact
-        elif roll <= 17:
-            await channel.send(embed=self._mood_embed())
-
-        # Otherwise: normal fun fact
+        # 60% lore drop, 40% activity reaction
+        roll = random.random()
+        if roll < 0.60:
+            await channel.send(embed=_lore_embed())
         else:
-            await channel.send(embed=self._fact_embed())
+            await channel.send(embed=_activity_embed(server_is_active))
 
-    @tasks.loop(hours=24)
-    async def midnight_check(self):
-        """Once a day, Luna says something cryptic."""
-        channel = self.bot.get_channel(1463136856374906887)
-        if not channel:
-            return
-
-        embed = discord.Embed(
-            title="🌑 Daily Check-In",
-            description=random.choice(MIDNIGHT_MESSAGES),
-            color=0x1a1a2e,
-            timestamp=datetime.utcnow(),
-        )
-        embed.set_footer(text="MoonLight • Luna's daily transmission")
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-
-        await channel.send(embed=embed)
-
-    @send_fun_fact.before_loop
-    @midnight_check.before_loop
-    async def before_loops(self):
+    @daily_transmission.before_loop
+    async def before_loop(self):
         await self.bot.wait_until_ready()
 
 

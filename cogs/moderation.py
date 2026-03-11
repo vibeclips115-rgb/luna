@@ -3,10 +3,42 @@ from discord.ext import commands
 from datetime import timedelta, datetime
 from collections import defaultdict
 
+# ---------- ROLE IDS ----------
+MOD_ROLE_ID = 1463136855414280214
+TRIAL_MOD_ROLE_ID = 1463136855347302512
+
+# Tiers
+MOD_ROLES = {MOD_ROLE_ID}                          # Full access
+TRIAL_MOD_ROLES = {TRIAL_MOD_ROLE_ID}              # No ban/kick
+ALL_MOD_ROLES = MOD_ROLES | TRIAL_MOD_ROLES        # Everyone with any mod role
+
+
+# ---------- PERMISSION CHECKS ----------
+
+def has_any_mod_role():
+    """Check: Trial Mod OR Mod."""
+    async def predicate(ctx: commands.Context):
+        user_role_ids = {r.id for r in ctx.author.roles}
+        if user_role_ids & ALL_MOD_ROLES:
+            return True
+        raise commands.CheckFailure("❌ You don't have the required role to use this command.")
+    return commands.check(predicate)
+
+
+def has_mod_role():
+    """Check: Mod only (no Trial Mods)."""
+    async def predicate(ctx: commands.Context):
+        user_role_ids = {r.id for r in ctx.author.roles}
+        if user_role_ids & MOD_ROLES:
+            return True
+        raise commands.CheckFailure("❌ This command requires the **Mod** role or higher.")
+    return commands.check(predicate)
+
+
 # ---------- IN-MEMORY STORES ----------
-sniped_messages: dict[int, dict] = {}          # channel_id → last deleted message
-edited_messages: dict[int, dict] = {}          # channel_id → last edited message
-warnings: dict[int, list[dict]] = defaultdict(list)  # user_id → list of warnings
+sniped_messages: dict[int, dict] = {}
+edited_messages: dict[int, dict] = {}
+warnings: dict[int, list[dict]] = defaultdict(list)
 
 
 # ---------- HELPERS ----------
@@ -25,10 +57,17 @@ class Moderation(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    # ---------- KICK ----------
+    # ---------- ERROR HANDLER ----------
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send(str(error))
+
+    # ---------- KICK (Mod only) ----------
 
     @commands.command()
-    @commands.has_permissions(kick_members=True)
+    @has_mod_role()
     async def kick(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         await member.kick(reason=reason)
         await ctx.send(embed=_mod_embed(
@@ -37,10 +76,10 @@ class Moderation(commands.Cog):
             [("👤 Member", member.mention), ("📝 Reason", reason), ("🔧 Moderator", ctx.author.mention)]
         ))
 
-    # ---------- BAN ----------
+    # ---------- BAN (Mod only) ----------
 
     @commands.command()
-    @commands.has_permissions(ban_members=True)
+    @has_mod_role()
     async def ban(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         await member.ban(reason=reason)
         await ctx.send(embed=_mod_embed(
@@ -49,10 +88,10 @@ class Moderation(commands.Cog):
             [("👤 Member", str(member)), ("📝 Reason", reason), ("🔧 Moderator", ctx.author.mention)]
         ))
 
-    # ---------- UNBAN ----------
+    # ---------- UNBAN (Mod only) ----------
 
     @commands.command()
-    @commands.has_permissions(ban_members=True)
+    @has_mod_role()
     async def unban(self, ctx: commands.Context, user_id: int):
         try:
             user = await self.bot.fetch_user(user_id)
@@ -65,10 +104,10 @@ class Moderation(commands.Cog):
         except discord.NotFound:
             await ctx.send("❌ User not found or not banned.")
 
-    # ---------- SOFTBAN ----------
+    # ---------- SOFTBAN (Mod only) ----------
 
     @commands.command()
-    @commands.has_permissions(ban_members=True)
+    @has_mod_role()
     async def softban(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         """Ban then immediately unban — deletes recent messages without a permanent ban."""
         await member.ban(reason=f"Softban: {reason}", delete_message_days=1)
@@ -79,14 +118,14 @@ class Moderation(commands.Cog):
             [("👤 Member", member.mention), ("📝 Reason", reason), ("🔧 Moderator", ctx.author.mention)]
         ))
 
-    # ---------- TIMEOUT ----------
+    # ---------- TIMEOUT (Trial Mod+) ----------
 
     @commands.command(aliases=["mute"])
-    @commands.has_permissions(moderate_members=True)
+    @has_any_mod_role()
     async def timeout(self, ctx: commands.Context, member: discord.Member, minutes: int, *, reason: str = "No reason provided"):
         if minutes <= 0:
             return await ctx.send("❌ Duration must be greater than 0 minutes.")
-        if minutes > 40320:  # Discord max: 28 days
+        if minutes > 40320:
             return await ctx.send("❌ Max timeout is **28 days** (40,320 minutes).")
 
         until = discord.utils.utcnow() + timedelta(minutes=minutes)
@@ -106,12 +145,11 @@ class Moderation(commands.Cog):
             ]
         ))
 
-    # ---------- UNTIMEOUT ----------
+    # ---------- UNTIMEOUT (Trial Mod+) ----------
 
     @commands.command(aliases=["unmute", "untimeout"])
-    @commands.has_permissions(moderate_members=True)
+    @has_any_mod_role()
     async def removetimeout(self, ctx: commands.Context, member: discord.Member):
-        """Remove an active timeout from a member."""
         await member.timeout(None)
         await ctx.send(embed=_mod_embed(
             "✅ Timeout Removed",
@@ -119,10 +157,10 @@ class Moderation(commands.Cog):
             [("👤 Member", member.mention), ("🔧 Moderator", ctx.author.mention)]
         ))
 
-    # ---------- WARN ----------
+    # ---------- WARN (Trial Mod+) ----------
 
     @commands.command()
-    @commands.has_permissions(moderate_members=True)
+    @has_any_mod_role()
     async def warn(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         entry = {
             "reason": reason,
@@ -143,12 +181,11 @@ class Moderation(commands.Cog):
             ]
         ))
 
-    # ---------- WARNINGS ----------
+    # ---------- WARNINGS (Trial Mod+) ----------
 
     @commands.command(aliases=["warns", "infractions"])
-    @commands.has_permissions(moderate_members=True)
+    @has_any_mod_role()
     async def warnings(self, ctx: commands.Context, member: discord.Member):
-        """View all warnings for a member."""
         user_warns = warnings.get(member.id, [])
 
         if not user_warns:
@@ -168,12 +205,11 @@ class Moderation(commands.Cog):
         embed.set_footer(text="MoonLight Moderation 🛡️")
         await ctx.send(embed=embed)
 
-    # ---------- CLEAR WARNINGS ----------
+    # ---------- CLEAR WARNINGS (Trial Mod+) ----------
 
     @commands.command(aliases=["clearwarns"])
-    @commands.has_permissions(moderate_members=True)
+    @has_any_mod_role()
     async def clearwarnings(self, ctx: commands.Context, member: discord.Member):
-        """Clear all warnings for a member."""
         count = len(warnings.pop(member.id, []))
         await ctx.send(embed=_mod_embed(
             "🧹 Warnings Cleared",
@@ -181,10 +217,10 @@ class Moderation(commands.Cog):
             [("👤 Member", member.mention), ("🗑️ Removed", f"{count} warning(s)"), ("🔧 Moderator", ctx.author.mention)]
         ))
 
-    # ---------- CLEAR / PURGE ----------
+    # ---------- CLEAR / PURGE (Trial Mod+) ----------
 
     @commands.command(name="clear", aliases=["purge"])
-    @commands.has_permissions(manage_messages=True)
+    @has_any_mod_role()
     async def clear(self, ctx: commands.Context, *, arg: str):
         MAX_SCAN = 100
         MAX_DELETE = 50
@@ -192,7 +228,6 @@ class Moderation(commands.Cog):
         await ctx.message.delete()
         arg_lower = arg.lower().strip()
 
-        # $clear bots — delete bot messages
         if arg_lower in ("bots", "contains bots"):
             deleted = []
             async for msg in ctx.channel.history(limit=MAX_SCAN):
@@ -205,7 +240,6 @@ class Moderation(commands.Cog):
             await ctx.channel.delete_messages(deleted)
             return await ctx.send(f"🤖 Deleted **{len(deleted)}** bot messages.", delete_after=3)
 
-        # $clear user @member — delete a specific user's messages
         if arg_lower.startswith("user "):
             raw = arg[5:].strip()
             member_id = None
@@ -228,7 +262,6 @@ class Moderation(commands.Cog):
             await ctx.channel.delete_messages(deleted)
             return await ctx.send(f"🔍 Deleted **{len(deleted)}** messages from that user.", delete_after=3)
 
-        # $clear contains <keyword>
         if arg_lower.startswith("contains "):
             keyword = arg[9:].strip().lower()
             if not keyword:
@@ -244,7 +277,6 @@ class Moderation(commands.Cog):
             await ctx.channel.delete_messages(deleted)
             return await ctx.send(f"🔍 Deleted **{len(deleted)}** messages containing **'{keyword}'**.", delete_after=3)
 
-        # $clear <number>
         try:
             amount = int(arg)
         except ValueError:
@@ -262,12 +294,11 @@ class Moderation(commands.Cog):
         deleted = await ctx.channel.purge(limit=amount)
         await ctx.send(f"🧹 Deleted **{len(deleted)}** messages.", delete_after=3)
 
-    # ---------- LOCK / UNLOCK ----------
+    # ---------- LOCK / UNLOCK (Trial Mod+) ----------
 
     @commands.command()
-    @commands.has_permissions(manage_channels=True)
+    @has_any_mod_role()
     async def lock(self, ctx: commands.Context, channel: discord.TextChannel = None):
-        """Prevent members from sending messages in a channel."""
         channel = channel or ctx.channel
         overwrite = channel.overwrites_for(ctx.guild.default_role)
         overwrite.send_messages = False
@@ -279,9 +310,8 @@ class Moderation(commands.Cog):
         ))
 
     @commands.command()
-    @commands.has_permissions(manage_channels=True)
+    @has_any_mod_role()
     async def unlock(self, ctx: commands.Context, channel: discord.TextChannel = None):
-        """Restore member messaging in a channel."""
         channel = channel or ctx.channel
         overwrite = channel.overwrites_for(ctx.guild.default_role)
         overwrite.send_messages = True
@@ -292,12 +322,11 @@ class Moderation(commands.Cog):
             [("📺 Channel", channel.mention), ("🔧 Moderator", ctx.author.mention)]
         ))
 
-    # ---------- SLOWMODE ----------
+    # ---------- SLOWMODE (Trial Mod+) ----------
 
     @commands.command()
-    @commands.has_permissions(manage_channels=True)
+    @has_any_mod_role()
     async def slowmode(self, ctx: commands.Context, seconds: int, channel: discord.TextChannel = None):
-        """Set slowmode delay in a channel. Use 0 to disable."""
         channel = channel or ctx.channel
         if not (0 <= seconds <= 21600):
             return await ctx.send("❌ Slowmode must be between **0** and **21600** seconds.")
@@ -309,12 +338,11 @@ class Moderation(commands.Cog):
             [("📺 Channel", channel.mention), ("⏱️ Delay", msg), ("🔧 Moderator", ctx.author.mention)]
         ))
 
-    # ---------- NICK ----------
+    # ---------- NICK (Trial Mod+) ----------
 
     @commands.command()
-    @commands.has_permissions(manage_nicknames=True)
+    @has_any_mod_role()
     async def nick(self, ctx: commands.Context, member: discord.Member, *, nickname: str = None):
-        """Change or reset a member's nickname."""
         old_nick = member.display_name
         await member.edit(nick=nickname)
         await ctx.send(embed=_mod_embed(
@@ -328,13 +356,13 @@ class Moderation(commands.Cog):
             ]
         ))
 
-    # ---------- USERINFO ----------
+    # ---------- USERINFO (Trial Mod+) ----------
 
     @commands.command(aliases=["ui", "whois"])
+    @has_any_mod_role()
     async def userinfo(self, ctx: commands.Context, member: discord.Member = None):
-        """Display detailed info about a member."""
         member = member or ctx.author
-        roles = [r.mention for r in member.roles[1:]] or ["None"]  # skip @everyone
+        roles = [r.mention for r in member.roles[1:]] or ["None"]
 
         embed = discord.Embed(
             title=f"👤 {member.display_name}",
@@ -344,37 +372,21 @@ class Moderation(commands.Cog):
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name="🆔 ID", value=str(member.id), inline=True)
         embed.add_field(name="🤖 Bot", value="Yes" if member.bot else "No", inline=True)
-        embed.add_field(
-            name="📅 Account Created",
-            value=discord.utils.format_dt(member.created_at, style="R"),
-            inline=False,
-        )
-        embed.add_field(
-            name="📥 Joined Server",
-            value=discord.utils.format_dt(member.joined_at, style="R") if member.joined_at else "Unknown",
-            inline=False,
-        )
-        embed.add_field(
-            name=f"🎭 Roles ({len(member.roles) - 1})",
-            value=" ".join(roles[:10]) + (" …" if len(roles) > 10 else ""),
-            inline=False,
-        )
+        embed.add_field(name="📅 Account Created", value=discord.utils.format_dt(member.created_at, style="R"), inline=False)
+        embed.add_field(name="📥 Joined Server", value=discord.utils.format_dt(member.joined_at, style="R") if member.joined_at else "Unknown", inline=False)
+        embed.add_field(name=f"🎭 Roles ({len(member.roles) - 1})", value=" ".join(roles[:10]) + (" …" if len(roles) > 10 else ""), inline=False)
         warns = len(warnings.get(member.id, []))
         embed.add_field(name="⚠️ Warnings", value=str(warns), inline=True)
         embed.set_footer(text="MoonLight Moderation 🛡️")
         await ctx.send(embed=embed)
 
-    # ---------- SERVERINFO ----------
+    # ---------- SERVERINFO (Trial Mod+) ----------
 
     @commands.command(aliases=["si", "server"])
+    @has_any_mod_role()
     async def serverinfo(self, ctx: commands.Context):
-        """Display info about the current server."""
         g = ctx.guild
-        embed = discord.Embed(
-            title=f"🏠 {g.name}",
-            color=discord.Color.blurple(),
-            timestamp=datetime.utcnow(),
-        )
+        embed = discord.Embed(title=f"🏠 {g.name}", color=discord.Color.blurple(), timestamp=datetime.utcnow())
         if g.icon:
             embed.set_thumbnail(url=g.icon.url)
         embed.add_field(name="🆔 ID", value=str(g.id), inline=True)
@@ -383,15 +395,11 @@ class Moderation(commands.Cog):
         embed.add_field(name="📺 Channels", value=str(len(g.channels)), inline=True)
         embed.add_field(name="🎭 Roles", value=str(len(g.roles)), inline=True)
         embed.add_field(name="😀 Emojis", value=str(len(g.emojis)), inline=True)
-        embed.add_field(
-            name="📅 Created",
-            value=discord.utils.format_dt(g.created_at, style="R"),
-            inline=False,
-        )
+        embed.add_field(name="📅 Created", value=discord.utils.format_dt(g.created_at, style="R"), inline=False)
         embed.set_footer(text="MoonLight Moderation 🛡️")
         await ctx.send(embed=embed)
 
-    # ---------- SNIPE ----------
+    # ---------- SNIPE (Trial Mod+) ----------
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
@@ -405,7 +413,7 @@ class Moderation(commands.Cog):
         }
 
     @commands.command(aliases=["snipe"])
-    @commands.has_permissions(manage_messages=True)
+    @has_any_mod_role()
     async def s(self, ctx: commands.Context):
         data = sniped_messages.get(ctx.channel.id)
         if not data:
@@ -421,7 +429,7 @@ class Moderation(commands.Cog):
         embed.set_footer(text="MoonLight Moderation • Deleted message 🛡️")
         await ctx.send(embed=embed)
 
-    # ---------- EDIT SNIPE ----------
+    # ---------- EDIT SNIPE (Trial Mod+) ----------
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
@@ -436,22 +444,66 @@ class Moderation(commands.Cog):
         }
 
     @commands.command(aliases=["esnipe", "editsnipe"])
-    @commands.has_permissions(manage_messages=True)
+    @has_any_mod_role()
     async def es(self, ctx: commands.Context):
-        """Snipe the last edited message in this channel."""
         data = edited_messages.get(ctx.channel.id)
         if not data:
             return await ctx.send("❌ No recently edited messages here.")
 
-        embed = discord.Embed(
-            title="✏️ Edit Sniped",
-            color=discord.Color.blurple(),
-            timestamp=data["time"],
-        )
+        embed = discord.Embed(title="✏️ Edit Sniped", color=discord.Color.blurple(), timestamp=data["time"])
         embed.set_author(name=str(data["author"]), icon_url=data["avatar"])
         embed.add_field(name="📝 Before", value=data["before"], inline=False)
         embed.add_field(name="✏️ After", value=data["after"], inline=False)
         embed.set_footer(text="MoonLight Moderation • Edited message 🛡️")
+        await ctx.send(embed=embed)
+
+    # ---------- MODINFO ----------
+
+    @commands.command(name="modinfo")
+    @has_any_mod_role()
+    async def modinfo(self, ctx: commands.Context):
+        """Display which roles can use which commands."""
+        embed = discord.Embed(
+            title="🛡️ MoonLight Mod Permissions",
+            description="Here's a breakdown of what each staff role can do.",
+            color=discord.Color.blurple(),
+            timestamp=datetime.utcnow(),
+        )
+
+        embed.add_field(
+            name="🔴 Mod only — <@&1463136855414280214>",
+            value=(
+                "`$ban` — Permanently ban a member\n"
+                "`$unban` — Unban a user by ID\n"
+                "`$kick` — Kick a member\n"
+                "`$softban` — Ban + unban to clear messages"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="🟡 Trial Mod + Mod — <@&1463136855347302512> <@&1463136855414280214>",
+            value=(
+                "`$timeout / $mute` — Timeout a member\n"
+                "`$removetimeout / $unmute` — Remove a timeout\n"
+                "`$warn` — Issue a warning\n"
+                "`$warnings / $warns` — View a member's warnings\n"
+                "`$clearwarnings / $clearwarns` — Clear all warnings\n"
+                "`$clear / $purge` — Bulk delete messages\n"
+                "`$lock` — Lock a channel\n"
+                "`$unlock` — Unlock a channel\n"
+                "`$slowmode` — Set channel slowmode\n"
+                "`$nick` — Change a member's nickname\n"
+                "`$userinfo / $whois` — View member info\n"
+                "`$serverinfo / $server` — View server info\n"
+                "`$s / $snipe` — Snipe a deleted message\n"
+                "`$es / $esnipe` — Snipe an edited message\n"
+                "`$modinfo` — Show this panel"
+            ),
+            inline=False,
+        )
+
+        embed.set_footer(text="MoonLight Moderation 🛡️")
         await ctx.send(embed=embed)
 
 

@@ -10,6 +10,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 MODEL = "llama-3.3-70b-versatile"
 LUNA_COOLDOWN = 10  # seconds per user
 OWNER_ID = 1099923662267760745
+OWNER_IDS = {1099923662267760745, 948613491999264838}  # Ryuken + Aizen (co-owner)
 LOVED_IDS = {1099923662267760745, 948613491999264838}  # Ryuken + co-owner
 
 # ---------- LUNA'S PERSONALITY ----------
@@ -118,7 +119,7 @@ class AI(commands.Cog):
             return
         last_trigger[user_id] = now
 
-        # Owner bypass — no limits for Ryuken
+        # Owner bypass — no limits for Ryuken or Aizen
         if user_id not in LOVED_IDS:
             if _check_limit(user_id):
                 await message.reply(
@@ -200,8 +201,8 @@ class AI(commands.Cog):
 
     @commands.command(name="disable")
     async def disable(self, ctx: commands.Context, feature: str = None):
-        """Disable a feature server-wide. Owner only."""
-        if ctx.author.id != OWNER_ID:
+        """Disable a feature server-wide. Owner and co-owner only."""
+        if ctx.author.id not in OWNER_IDS:
             return await ctx.send("❌ You don't have permission to do that.")
         if feature and feature.lower() == "ai":
             ai_enabled[ctx.guild.id] = False
@@ -211,8 +212,8 @@ class AI(commands.Cog):
 
     @commands.command(name="enable")
     async def enable(self, ctx: commands.Context, feature: str = None):
-        """Enable a feature server-wide. Owner only."""
-        if ctx.author.id != OWNER_ID:
+        """Enable a feature server-wide. Owner and co-owner only."""
+        if ctx.author.id not in OWNER_IDS:
             return await ctx.send("❌ You don't have permission to do that.")
         if feature and feature.lower() == "ai":
             ai_enabled[ctx.guild.id] = True

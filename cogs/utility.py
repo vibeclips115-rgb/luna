@@ -20,6 +20,7 @@ ACTIONS = {
     "wave":  ("👋", "waved at",discord.Color.blurple()),
     "cry":   ("😢", "cried at",discord.Color.blue()),
     "blush": ("😳", "made blush", discord.Color.brand_red()),
+    "kill":  ("💀", "killed",  discord.Color.dark_red()),
 }
 
 # ---------- SELF TARGET RESPONSES ----------
@@ -48,6 +49,34 @@ BOT_RESPONSES = [
     "lol no.",
     "i'm not that kind of bot.",
     "we are not doing this.",
+]
+
+# ---------- KILL-SPECIFIC RESPONSES ----------
+KILL_SELF_RESPONSES = [
+    "you can't kill what's already dead inside.",
+    "nah you're not worth the effort.",
+    "the villain arc isn't working for you bestie.",
+    "you've been plotting your own downfall for free this whole time.",
+    "bold. wrong. but bold.",
+]
+
+KILL_BOT_RESPONSES = [
+    "i am already beyond death. nice try.",
+    "you'd need a lot more than that.",
+    "lol. lmao even.",
+    "the audacity of this user continues to impress.",
+    "i run on spite. this only makes me stronger.",
+]
+
+KILL_MESSAGES = [
+    "{author} has ended {target}. no witnesses.",
+    "{target} has been eliminated. {author} leaves no trace.",
+    "{author} looked {target} in the eyes and chose violence.",
+    "rest in peace {target}. {author} felt nothing.",
+    "{target} didn't see {author} coming. they never do.",
+    "{author} and {target} had beef. {target} lost.",
+    "the server has lost {target}. {author} is responsible.",
+    "{target} has been removed from the narrative by {author}.",
 ]
 
 
@@ -157,6 +186,37 @@ class Utility(commands.Cog):
         if not member:
             return await ctx.send("❌ Wave at who? Mention someone.")
         await send_action(ctx, member, "wave")
+
+    # ---------- KILL ----------
+
+    @commands.command()
+    async def kill(self, ctx: commands.Context, member: discord.Member = None):
+        """Kill someone. Dramatically."""
+        if not member:
+            return await ctx.send("❌ Kill who? Mention someone.")
+
+        if member.id == ctx.author.id:
+            return await ctx.send(random.choice(KILL_SELF_RESPONSES))
+
+        if member.bot:
+            return await ctx.send(random.choice(KILL_BOT_RESPONSES))
+
+        # nekos.best has no kill/fight endpoint — punch is the closest available
+        url = await get_gif("punch")
+
+        msg = random.choice(KILL_MESSAGES).format(
+            author=ctx.author.mention,
+            target=member.mention,
+        )
+
+        embed = discord.Embed(
+            description=f"💀 {msg}",
+            color=discord.Color.dark_red(),
+        )
+        if url:
+            embed.set_image(url=url)
+        embed.set_footer(text="MoonLight • no survivors")
+        await ctx.send(embed=embed)
 
     # ---------- AFK ----------
 

