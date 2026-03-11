@@ -1,6 +1,4 @@
 import io
-import os
-import subprocess
 import discord
 from discord.ext import commands
 from typing import Optional
@@ -10,24 +8,6 @@ import random
 
 # ---------- QUOTE CONFIG ----------
 QUOTE_CHANNEL_ID = 1467709771447795947
-
-def _find_font(bold: bool = False) -> Optional[str]:
-    """Dynamically locate a font via fc-match — works on any Linux environment."""
-    name = "DejaVuSans-Bold" if bold else "DejaVuSans"
-    try:
-        result = subprocess.run(
-            ["fc-match", "--format=%{file}", name],
-            capture_output=True, text=True
-        )
-        path = result.stdout.strip()
-        if path and os.path.exists(path):
-            return path
-    except Exception:
-        pass
-    return None
-
-FONT_PATH_REGULAR = _find_font(bold=False)
-FONT_PATH_BOLD    = _find_font(bold=True)
 
 # ---------- AFK STORAGE ----------
 afk_users: dict[int, dict] = {}
@@ -362,8 +342,8 @@ class Utility(commands.Cog):
 
         # Build image synchronously inside executor so event loop stays free
         def build_card() -> io.BytesIO:
-            W, H = 900, 500
-            AVATAR_SIZE      = 120
+            W, H = 900, 520
+            AVATAR_SIZE      = 130
             BG_COLOR         = (10, 10, 15)
             ACCENT           = (110, 60, 180)
             ACCENT_LIGHT     = (160, 110, 230)
@@ -372,12 +352,32 @@ class Utility(commands.Cog):
             DIM_COLOR        = (65, 45, 100)
             QUOTE_MARK_COLOR = (80, 45, 140)
 
-            font_quote  = ImageFont.truetype(FONT_PATH_REGULAR, 32) if FONT_PATH_REGULAR else ImageFont.load_default()
-            font_mark   = ImageFont.truetype(FONT_PATH_BOLD,    88) if FONT_PATH_BOLD    else ImageFont.load_default()
-            font_name   = ImageFont.truetype(FONT_PATH_BOLD,    24) if FONT_PATH_BOLD    else ImageFont.load_default()
-            font_footer = ImageFont.truetype(FONT_PATH_REGULAR, 18) if FONT_PATH_REGULAR else ImageFont.load_default()
+            # Use Noto fonts for full Unicode support (Arabic, emoji, etc.)
+            # fc-match will pick the best available font for the given name
+            def load(bold: bool, size: int) -> ImageFont.FreeTypeFont:
+                candidates = [
+                    "NotoSans-Bold" if bold else "NotoSans-Regular",
+                    "DejaVuSans-Bold" if bold else "DejaVuSans",
+                ]
+                for name in candidates:
+                    try:
+                        r = __import__('subprocess').run(
+                            ["fc-match", "--format=%{file}", name],
+                            capture_output=True, text=True
+                        )
+                        path = r.stdout.strip()
+                        if path and __import__('os').path.exists(path):
+                            return ImageFont.truetype(path, size)
+                    except Exception:
+                        pass
+                return ImageFont.load_default(size=size)
 
-            img  = Image.new("RGB", (W, H), BG_COLOR)
+            font_quote  = load(False, 36)
+            font_mark   = load(True,  96)
+            font_name   = load(True,  28)
+            font_footer = load(False, 20)
+
+            img = Image.new("RGB", (W, H), BG_COLOR)
 
             # Subtle corner glow blobs
             for radius, opacity in [(300, 18), (200, 12), (120, 8)]:
@@ -406,10 +406,11 @@ class Utility(commands.Cog):
             img.paste(avatar_img, (av_x, av_y), mask)
             draw = ImageDraw.Draw(img)
 
-            # Username
-            bbox  = draw.textbbox((0, 0), username, font=font_name)
+            # Username — strip non-renderable chars as last resort fallback
+            safe_username = username.encode("utf-8", errors="replace").decode("utf-8")
+            bbox   = draw.textbbox((0, 0), safe_username, font=font_name)
             name_w = bbox[2] - bbox[0]
-            draw.text(((W - name_w) // 2, av_y + AVATAR_SIZE + 14), username, font=font_name, fill=NAME_COLOR)
+            draw.text(((W - name_w) // 2, av_y + AVATAR_SIZE + 16), safe_username, font=font_name, fill=NAME_COLOR)
 
             # Word-wrapped quote text centered at bottom
             words = text.split()
@@ -426,9 +427,9 @@ class Utility(commands.Cog):
             if line:
                 lines.append(line)
 
-            line_h  = 46
+            line_h  = 50
             total_h = len(lines) * line_h
-            text_y  = H - total_h - 52
+            text_y  = H - total_h - 58
 
             for ln in lines:
                 bbox = draw.textbbox((0, 0), ln, font=font_quote)
@@ -437,11 +438,11 @@ class Utility(commands.Cog):
                 text_y += line_h
 
             # Divider + footer
-            draw.line([(80, H - 38), (W - 80, H - 38)], fill=DIM_COLOR, width=1)
+            draw.line([(80, H - 40), (W - 80, H - 40)], fill=DIM_COLOR, width=1)
             footer = "MoonLight"
             bbox   = draw.textbbox((0, 0), footer, font=font_footer)
             fw     = bbox[2] - bbox[0]
-            draw.text(((W - fw) // 2, H - 30), footer, font=font_footer, fill=DIM_COLOR)
+            draw.text(((W - fw) // 2, H - 32), footer, font=font_footer, fill=DIM_COLOR)
 
             buf = io.BytesIO()
             img.save(buf, format="PNG")
