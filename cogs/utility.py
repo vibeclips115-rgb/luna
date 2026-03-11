@@ -482,7 +482,7 @@ class Utility(commands.Cog):
 
             # Attribution: "— display_name"
             text_y += gap
-            attr    = f"\ {display_name}"
+            attr    = f"~ {display_name}"
             draw.text((TEXT_X + 4, text_y), attr, font=font_name, fill=NAME_COLOR)
 
             # Subtle bottom footer
