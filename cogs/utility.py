@@ -457,7 +457,7 @@ class Utility(commands.Cog):
             words = text.split()
             lines, line = [], ""
             for word in words:
-                test = (line + " " + word).strip()
+                test = (line + "" "" + word).strip()
                 bbox = draw.textbbox((0, 0), test, font=font_quote)
                 if bbox[2] - bbox[0] > TEXT_W:
                     if line:
@@ -482,7 +482,7 @@ class Utility(commands.Cog):
 
             # Attribution: "— display_name"
             text_y += gap
-            attr    = f"\u2014 {display_name}"
+            attr    = f"\ {display_name}"
             draw.text((TEXT_X + 4, text_y), attr, font=font_name, fill=NAME_COLOR)
 
             # Subtle bottom footer
