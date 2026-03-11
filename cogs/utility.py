@@ -1,9 +1,33 @@
+import io
+import os
+import subprocess
 import discord
 from discord.ext import commands
 from typing import Optional
+from PIL import Image, ImageDraw, ImageFont
 import aiohttp
-
 import random
+
+# ---------- QUOTE CONFIG ----------
+QUOTE_CHANNEL_ID = 1467709771447795947
+
+def _find_font(bold: bool = False) -> Optional[str]:
+    """Dynamically locate a font via fc-match — works on any Linux environment."""
+    name = "DejaVuSans-Bold" if bold else "DejaVuSans"
+    try:
+        result = subprocess.run(
+            ["fc-match", "--format=%{file}", name],
+            capture_output=True, text=True
+        )
+        path = result.stdout.strip()
+        if path and os.path.exists(path):
+            return path
+    except Exception:
+        pass
+    return None
+
+FONT_PATH_REGULAR = _find_font(bold=False)
+FONT_PATH_BOLD    = _find_font(bold=True)
 
 # ---------- AFK STORAGE ----------
 afk_users: dict[int, dict] = {}
@@ -304,6 +328,134 @@ class Utility(commands.Cog):
             icon_url=ctx.author.display_avatar.url,
         )
         await ctx.send(embed=embed)
+
+    # ---------- QUOTE ----------
+
+    @commands.command()
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    async def quote(self, ctx: commands.Context, *, text: str = None):
+        """Post a quote card to the quotes channel."""
+        if not text:
+            return await ctx.send("❌ What's the quote? Usage: `$quote <your text>`")
+        if len(text) > 220:
+            return await ctx.send("❌ Quote is too long. Keep it under 220 characters.")
+
+        quote_channel = self.bot.get_channel(QUOTE_CHANNEL_ID)
+        if not quote_channel:
+            return await ctx.send("❌ Quote channel not found.")
+
+        # Delete invoking message so it feels clean
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
+
+        # Fetch avatar bytes
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(str(ctx.author.display_avatar.replace(format="png", size=256))) as resp:
+                    avatar_bytes = await resp.read()
+        except Exception:
+            return
+
+        username = ctx.author.display_name
+
+        # Build image synchronously inside executor so event loop stays free
+        def build_card() -> io.BytesIO:
+            W, H = 900, 500
+            AVATAR_SIZE      = 120
+            BG_COLOR         = (10, 10, 15)
+            ACCENT           = (110, 60, 180)
+            ACCENT_LIGHT     = (160, 110, 230)
+            TEXT_COLOR       = (230, 220, 255)
+            NAME_COLOR       = (190, 155, 255)
+            DIM_COLOR        = (65, 45, 100)
+            QUOTE_MARK_COLOR = (80, 45, 140)
+
+            font_quote  = ImageFont.truetype(FONT_PATH_REGULAR, 32) if FONT_PATH_REGULAR else ImageFont.load_default()
+            font_mark   = ImageFont.truetype(FONT_PATH_BOLD,    88) if FONT_PATH_BOLD    else ImageFont.load_default()
+            font_name   = ImageFont.truetype(FONT_PATH_BOLD,    24) if FONT_PATH_BOLD    else ImageFont.load_default()
+            font_footer = ImageFont.truetype(FONT_PATH_REGULAR, 18) if FONT_PATH_REGULAR else ImageFont.load_default()
+
+            img  = Image.new("RGB", (W, H), BG_COLOR)
+
+            # Subtle corner glow blobs
+            for radius, opacity in [(300, 18), (200, 12), (120, 8)]:
+                blob = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+                bd   = ImageDraw.Draw(blob)
+                bd.ellipse([-radius // 2, -radius // 2, radius, radius], fill=(*ACCENT, opacity))
+                bd.ellipse([W - radius, H - radius, W + radius // 2, H + radius // 2], fill=(*ACCENT, opacity))
+                img = Image.alpha_composite(img.convert("RGBA"), blob).convert("RGB")
+
+            draw = ImageDraw.Draw(img)
+
+            # Opening quote mark
+            draw.text((44, 18), "\u201c", font=font_mark, fill=QUOTE_MARK_COLOR)
+
+            # Circular avatar with glow ring
+            avatar_img = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize((AVATAR_SIZE, AVATAR_SIZE))
+            mask = Image.new("L", (AVATAR_SIZE, AVATAR_SIZE), 0)
+            ImageDraw.Draw(mask).ellipse([0, 0, AVATAR_SIZE, AVATAR_SIZE], fill=255)
+            avatar_img.putalpha(mask)
+
+            av_x = (W - AVATAR_SIZE) // 2
+            av_y = 55
+
+            draw.ellipse([av_x - 6, av_y - 6, av_x + AVATAR_SIZE + 6, av_y + AVATAR_SIZE + 6], outline=ACCENT, width=3)
+            draw.ellipse([av_x - 2, av_y - 2, av_x + AVATAR_SIZE + 2, av_y + AVATAR_SIZE + 2], outline=ACCENT_LIGHT, width=1)
+            img.paste(avatar_img, (av_x, av_y), mask)
+            draw = ImageDraw.Draw(img)
+
+            # Username
+            bbox  = draw.textbbox((0, 0), username, font=font_name)
+            name_w = bbox[2] - bbox[0]
+            draw.text(((W - name_w) // 2, av_y + AVATAR_SIZE + 14), username, font=font_name, fill=NAME_COLOR)
+
+            # Word-wrapped quote text centered at bottom
+            words = text.split()
+            lines, line = [], ""
+            for word in words:
+                test = (line + " " + word).strip()
+                bbox = draw.textbbox((0, 0), test, font=font_quote)
+                if bbox[2] - bbox[0] > W - 130:
+                    if line:
+                        lines.append(line)
+                    line = word
+                else:
+                    line = test
+            if line:
+                lines.append(line)
+
+            line_h  = 46
+            total_h = len(lines) * line_h
+            text_y  = H - total_h - 52
+
+            for ln in lines:
+                bbox = draw.textbbox((0, 0), ln, font=font_quote)
+                lw   = bbox[2] - bbox[0]
+                draw.text(((W - lw) // 2, text_y), ln, font=font_quote, fill=TEXT_COLOR)
+                text_y += line_h
+
+            # Divider + footer
+            draw.line([(80, H - 38), (W - 80, H - 38)], fill=DIM_COLOR, width=1)
+            footer = "MoonLight"
+            bbox   = draw.textbbox((0, 0), footer, font=font_footer)
+            fw     = bbox[2] - bbox[0]
+            draw.text(((W - fw) // 2, H - 30), footer, font=font_footer, fill=DIM_COLOR)
+
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            buf.seek(0)
+            return buf
+
+        buf = await self.bot.loop.run_in_executor(None, build_card)
+
+        await quote_channel.send(file=discord.File(buf, filename="quote.png"))
+
+        try:
+            await ctx.author.send("🖼️ Your quote was posted.")
+        except discord.Forbidden:
+            pass
 
 
 # ---------- SETUP ----------
