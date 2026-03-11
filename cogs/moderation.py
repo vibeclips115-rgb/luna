@@ -12,12 +12,17 @@ MOD_ROLES = {MOD_ROLE_ID}                          # Full access
 TRIAL_MOD_ROLES = {TRIAL_MOD_ROLE_ID}              # No ban/kick
 ALL_MOD_ROLES = MOD_ROLES | TRIAL_MOD_ROLES        # Everyone with any mod role
 
+# Owners bypass all role checks entirely
+OWNER_IDS = {1099923662267760745, 948613491999264838}  # Ryuken + Aizen
+
 
 # ---------- PERMISSION CHECKS ----------
 
 def has_any_mod_role():
-    """Check: Trial Mod OR Mod."""
+    """Check: Owner bypass OR Trial Mod OR Mod."""
     async def predicate(ctx: commands.Context):
+        if ctx.author.id in OWNER_IDS:
+            return True
         user_role_ids = {r.id for r in ctx.author.roles}
         if user_role_ids & ALL_MOD_ROLES:
             return True
@@ -26,8 +31,10 @@ def has_any_mod_role():
 
 
 def has_mod_role():
-    """Check: Mod only (no Trial Mods)."""
+    """Check: Owner bypass OR Mod only."""
     async def predicate(ctx: commands.Context):
+        if ctx.author.id in OWNER_IDS:
+            return True
         user_role_ids = {r.id for r in ctx.author.roles}
         if user_role_ids & MOD_ROLES:
             return True
