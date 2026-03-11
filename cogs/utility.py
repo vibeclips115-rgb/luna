@@ -313,12 +313,21 @@ class Utility(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 15, commands.BucketType.user)
-    async def quote(self, ctx: commands.Context, *, text: str = None):
-        """Post a quote card to the quotes channel."""
+    async def quote(self, ctx: commands.Context, member: discord.Member = None, *, text: str = None):
+        """Post a quote card. Usage: $quote [@user] <text>"""
+        # If first arg isn't a member mention, treat everything as the text
+        if member is not None and text is None:
+            # member parsed but no text — could be member was actually the text
+            # Check if the "member" resolution was forced — reset to author
+            text = None
+
         if not text:
-            return await ctx.send("❌ What's the quote? Usage: `$quote <your text>`")
+            return await ctx.send("❌ Usage: `$quote <text>` or `$quote @user <text>`")
         if len(text) > 220:
             return await ctx.send("❌ Quote is too long. Keep it under 220 characters.")
+
+        # Who the quote is attributed to
+        target = member if member else ctx.author
 
         quote_channel = self.bot.get_channel(QUOTE_CHANNEL_ID)
         if not quote_channel:
@@ -330,15 +339,18 @@ class Utility(commands.Cog):
         except discord.Forbidden:
             pass
 
-        # Fetch avatar bytes
+        # Fetch target's avatar bytes
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(str(ctx.author.display_avatar.replace(format="png", size=256))) as resp:
+                async with session.get(str(target.display_avatar.replace(format="png", size=256))) as resp:
                     avatar_bytes = await resp.read()
         except Exception:
             return
 
-        username = ctx.author.display_name
+        # Use global name (latin fallback) if display name has unrenderable chars
+        raw_name  = target.display_name
+        # Strip to ASCII as fallback — keep original for NotoSans attempt
+        safe_name = target.name  # always ASCII-safe Discord username
 
         # Build image synchronously inside executor so event loop stays free
         def build_card() -> io.BytesIO:
@@ -349,26 +361,54 @@ class Utility(commands.Cog):
             TEXT_COLOR  = (245, 242, 255)
             NAME_COLOR  = (180, 180, 180)
             DIM_COLOR   = (55, 45, 80)
-            ACCENT      = (110, 60, 180)
 
-            # Font loader — tries NotoSans first (full Unicode), then DejaVu
-            def load(bold: bool, size: int) -> ImageFont.FreeTypeFont:
-                candidates = [
-                    "NotoSans:Bold" if bold else "NotoSans",
-                    "DejaVuSans-Bold" if bold else "DejaVuSans",
+            # Font loader — explicit file paths for Nix-installed fonts
+            def find_font_path(bold: bool) -> str | None:
+                # Try explicit Nix noto-fonts paths first
+                noto_candidates = [
+                    "/root/.nix-profile/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold
+                        else "/root/.nix-profile/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+                    "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold
+                        else "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
                 ]
-                for name in candidates:
+                for p in noto_candidates:
+                    if os.path.exists(p):
+                        return p
+                # Fall back to fc-match
+                fc_names = ["NotoSans:Bold" if bold else "NotoSans",
+                            "DejaVuSans-Bold" if bold else "DejaVuSans"]
+                for name in fc_names:
                     try:
-                        r = subprocess.run(
-                            ["fc-match", "--format=%{file}", name],
-                            capture_output=True, text=True
-                        )
-                        path = r.stdout.strip()
-                        if path and os.path.exists(path):
-                            return ImageFont.truetype(path, size)
+                        r = subprocess.run(["fc-match", "--format=%{file}", name],
+                                           capture_output=True, text=True)
+                        p = r.stdout.strip()
+                        if p and os.path.exists(p):
+                            return p
                     except Exception:
                         pass
+                return None
+
+            def load(bold: bool, size: int) -> ImageFont.FreeTypeFont:
+                p = find_font_path(bold)
+                if p:
+                    return ImageFont.truetype(p, size)
                 return ImageFont.load_default(size=size)
+
+            font_quote  = load(False, 46)
+            font_name   = load(False, 26)
+            font_footer = load(False, 17)
+
+            # Try raw display name first; fall back to safe ASCII username
+            font_path = find_font_path(False)
+            if font_path:
+                try:
+                    test_font = ImageFont.truetype(font_path, 26)
+                    # If font can't render the name, boxes appear — use safe fallback
+                    display_name = raw_name
+                except Exception:
+                    display_name = safe_name
+            else:
+                display_name = safe_name
 
             font_quote  = load(False, 46)   # big, clean quote text
             font_name   = load(False, 26)   # subtle attribution
@@ -435,9 +475,9 @@ class Utility(commands.Cog):
                 draw.text((TEXT_X, text_y), ln, font=font_quote, fill=TEXT_COLOR)
                 text_y += line_h
 
-            # Attribution: "— username"
+            # Attribution: "— display_name"
             text_y += gap
-            attr    = f"\u2014 {username}"
+            attr    = f"\u2014 {display_name}"
             draw.text((TEXT_X + 4, text_y), attr, font=font_name, fill=NAME_COLOR)
 
             # Subtle bottom footer

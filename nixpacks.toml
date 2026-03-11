@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["ffmpeg", "fontconfig", "dejavu_fonts"]
+nixPkgs = ["ffmpeg", "fontconfig", "dejavu_fonts", "noto-fonts"]
 
 [variables]
 FFMPEG_BINARY = "ffmpeg"
