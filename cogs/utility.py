@@ -313,21 +313,26 @@ class Utility(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 15, commands.BucketType.user)
-    async def quote(self, ctx: commands.Context, member: discord.Member = None, *, text: str = None):
-        """Post a quote card. Usage: $quote [@user] <text>"""
-        # If first arg isn't a member mention, treat everything as the text
-        if member is not None and text is None:
-            # member parsed but no text — could be member was actually the text
-            # Check if the "member" resolution was forced — reset to author
-            text = None
-
+    async def quote(self, ctx: commands.Context, *, text: str = None):
+        """Post a quote card. Usage: $quote <text> or $quote @user <text>"""
         if not text:
             return await ctx.send("❌ Usage: `$quote <text>` or `$quote @user <text>`")
+
+        # Check if the message starts with a mention — if so, extract member + remaining text
+        target = ctx.author
+        if ctx.message.mentions:
+            mentioned = ctx.message.mentions[0]
+            # Strip the mention from the front of the text
+            for fmt in [f"<@{mentioned.id}>", f"<@!{mentioned.id}>"]:
+                if text.startswith(fmt):
+                    text = text[len(fmt):].strip()
+                    target = mentioned
+                    break
+
+        if not text:
+            return await ctx.send("❌ You mentioned someone but forgot the quote text.")
         if len(text) > 220:
             return await ctx.send("❌ Quote is too long. Keep it under 220 characters.")
-
-        # Who the quote is attributed to
-        target = member if member else ctx.author
 
         quote_channel = self.bot.get_channel(QUOTE_CHANNEL_ID)
         if not quote_channel:
