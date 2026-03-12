@@ -85,7 +85,6 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
                     (
                         "Send an anonymous confession to the confessions channel.\n"
                         "─ Your identity is **completely hidden** from everyone including staff\n"
-                        "─ Only **Ryuken & Aizen** can see who sent it (via private DM)\n"
                         "─ Your command message is deleted instantly\n"
                         "─ You'll receive a quiet DM confirming it was sent\n"
                         "─ *30 second cooldown*"
