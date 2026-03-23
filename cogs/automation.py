@@ -1,14 +1,20 @@
+import os
 import random
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, time
+from groq import Groq
 
 # ---------- CONFIG ----------
 CHANNEL_ID = 1463136856374906887
+QOTD_CHANNEL_ID = 1467709648596631651
+QOTD_ROLE_ID = 1467710999468703805
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+MODEL = "llama-3.3-70b-versatile"
+OWNER_IDS = {1099923662267760745, 948613491999264838}  # Ryuken + Aizen
 
 # ---------- CONTENT POOLS ----------
 
-# Each lore entry is a mini story beat — they feel like fragments of something larger
 LUNA_LORE = [
     {
         "title": "📜 Log Entry — Unknown Date",
@@ -95,7 +101,6 @@ LUNA_LORE = [
     },
 ]
 
-# Activity reactions — Luna comments on the server's energy
 QUIET_REACTIONS = [
     ("🌫️ It's Been Quiet", [
         "Too quiet.",
@@ -140,6 +145,19 @@ ACTIVE_REACTIONS = [
     ]),
 ]
 
+# ---------- QOTD PROMPT ----------
+
+QOTD_SYSTEM = """
+You generate one Question of the Day for a Discord server called MoonLight.
+Rules:
+- Output ONLY the question — no preamble, no explanation, no quotes around it
+- Make it genuinely interesting and thought-provoking
+- Vary the theme each time: philosophy, hypotheticals, personal preferences, society, creativity, relationships, science, morality, the universe, everyday life
+- Keep it concise — one sentence, two at most
+- Do not start with "Would you rather" every time — mix it up
+- Never output the same question twice in a row
+- The question should spark conversation, not have a single right answer
+""".strip()
 
 # ---------- HELPERS ----------
 
@@ -167,26 +185,39 @@ def _activity_embed(active: bool) -> discord.Embed:
     return _build_embed(title, lines, color)
 
 
+def _qotd_embed(question: str) -> discord.Embed:
+    colors = [0xf4a261, 0xe76f51, 0x264653, 0x2a9d8f, 0xe9c46a, 0x6c63ff, 0xff6b6b]
+    embed = discord.Embed(
+        title="🌙 Question of the Day",
+        description=f"**{question}**",
+        color=random.choice(colors),
+        timestamp=datetime.utcnow(),
+    )
+    embed.set_footer(text="MoonLight ✦ Drop your answer below 👇")
+    return embed
+
+
 # ---------- COG ----------
 
 class AutoMessage(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.groq = Groq(api_key=GROQ_API_KEY)
         self.daily_transmission.start()
+        self.qotd_loop.start()
 
     def cog_unload(self):
         self.daily_transmission.cancel()
+        self.qotd_loop.cancel()
 
-    # ----- LOOP -----
+    # ---------- LORE / ACTIVITY LOOP ----------
 
-    # Fires at 12:00 UTC and 22:00 UTC (noon + late night)
     @tasks.loop(time=[time(hour=12, minute=0), time(hour=22, minute=0)])
     async def daily_transmission(self):
         channel = self.bot.get_channel(CHANNEL_ID)
         if not channel:
             return
 
-        # Sample recent activity — look at last 30 messages
         recent_count = 0
         try:
             async for msg in channel.history(limit=30):
@@ -197,7 +228,6 @@ class AutoMessage(commands.Cog):
 
         server_is_active = recent_count >= 10
 
-        # 60% lore drop, 40% activity reaction
         roll = random.random()
         if roll < 0.60:
             await channel.send(embed=_lore_embed())
@@ -205,8 +235,70 @@ class AutoMessage(commands.Cog):
             await channel.send(embed=_activity_embed(server_is_active))
 
     @daily_transmission.before_loop
-    async def before_loop(self):
+    async def before_transmission(self):
         await self.bot.wait_until_ready()
+
+    # ---------- QOTD LOOP ----------
+
+    # Fires every day at 09:00 UTC (2:30 PM IST)
+    @tasks.loop(time=[time(hour=9, minute=0)])
+    async def qotd_loop(self):
+        channel = self.bot.get_channel(QOTD_CHANNEL_ID)
+        if not channel:
+            return
+
+        question = await self._generate_question()
+        await channel.send(content=f"<@&{QOTD_ROLE_ID}>", embed=_qotd_embed(question))
+
+    @qotd_loop.before_loop
+    async def before_qotd(self):
+        await self.bot.wait_until_ready()
+
+    # ---------- TEST QOTD ----------
+
+    @commands.command(name="testqotd")
+    async def testqotd(self, ctx: commands.Context):
+        """Manually trigger a QOTD. Owner and co-owner only."""
+        if ctx.author.id not in OWNER_IDS:
+            return await ctx.send("❌ Not your command.")
+
+        channel = self.bot.get_channel(QOTD_CHANNEL_ID)
+        if not channel:
+            return await ctx.send("❌ QOTD channel not found.")
+
+        question = await self._generate_question()
+        await channel.send(content=f"<@&{QOTD_ROLE_ID}>", embed=_qotd_embed(question))
+        await ctx.send("✅ QOTD sent.", delete_after=5)
+
+    # ---------- QUESTION GENERATOR ----------
+
+    async def _generate_question(self) -> str:
+        """Ask Groq for a fresh QOTD question."""
+        try:
+            response = await self.bot.loop.run_in_executor(
+                None,
+                lambda: self.groq.chat.completions.create(
+                    model=MODEL,
+                    messages=[
+                        {"role": "system", "content": QOTD_SYSTEM},
+                        {"role": "user", "content": "Give me today's question."},
+                    ],
+                    max_tokens=80,
+                    temperature=1.0,
+                )
+            )
+            question = response.choices[0].message.content.strip().strip('"').strip("'")
+            return question if question else "If you could change one thing about the world overnight, what would it be?"
+        except Exception as e:
+            print(f"[QOTD Groq error] {e}")
+            fallbacks = [
+                "If you could live inside any fictional universe, which one would you choose and why?",
+                "What's something most people believe is true that you think is actually wrong?",
+                "If you woke up tomorrow with one new skill mastered, what would you want it to be?",
+                "What's a small thing that genuinely makes your day better?",
+                "If you could have a 10-minute conversation with anyone in history, who and why?",
+            ]
+            return random.choice(fallbacks)
 
 
 async def setup(bot: commands.Bot):
