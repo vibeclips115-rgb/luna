@@ -71,17 +71,17 @@ def demoted_rank(current: str) -> str | None:
 
 def _get_clan_by_name(name: str) -> dict | None:
     cur = conn.cursor()
-    cur.execute("SELECT id, name, leader_id, balance FROM clans WHERE LOWER(name) = LOWER(?)", (name,))
+    cur.execute("SELECT id, name, leader_id, balance, level FROM clans WHERE LOWER(name) = LOWER(?)", (name,))
     row = cur.fetchone()
     if not row:
         return None
-    return {"id": row[0], "name": row[1], "leader_id": row[2], "balance": row[3]}
+    return {"id": row[0], "name": row[1], "leader_id": row[2], "balance": row[3], "level": row[4]}
 
 
 def _get_clan_of_user(user_id: int) -> tuple[dict, str] | tuple[None, None]:
     cur = conn.cursor()
     cur.execute(
-        "SELECT c.id, c.name, c.leader_id, c.balance, cm.role "
+        "SELECT c.id, c.name, c.leader_id, c.balance, cm.role, c.level "
         "FROM clan_members cm JOIN clans c ON cm.clan_id = c.id "
         "WHERE cm.user_id = ?",
         (user_id,)
@@ -89,7 +89,7 @@ def _get_clan_of_user(user_id: int) -> tuple[dict, str] | tuple[None, None]:
     row = cur.fetchone()
     if not row:
         return None, None
-    return {"id": row[0], "name": row[1], "leader_id": row[2], "balance": row[3]}, row[4]
+    return {"id": row[0], "name": row[1], "leader_id": row[2], "balance": row[3], "level": row[5]}, row[4]
 
 
 def _get_clan_members(clan_id: int) -> list[tuple[int, str]]:
@@ -151,12 +151,22 @@ def _delete_clan(clan_id: int) -> None:
     conn.commit()
 
 
-def _update_vault(clan_id: int, amount: int) -> int:
+def _update_vault(clan_id: int, amount: int, old_level: int) -> tuple[int, int]:
+    """Add amount to vault, recalculate level. Returns (new_balance, new_level)."""
     cur = conn.cursor()
     cur.execute("UPDATE clans SET balance = balance + ? WHERE id = ?", (amount, clan_id))
     conn.commit()
     cur.execute("SELECT balance FROM clans WHERE id = ?", (clan_id,))
-    return cur.fetchone()[0]
+    new_balance = cur.fetchone()[0]
+
+    # Level = 1 + 1 per million in the vault
+    new_level = 1 + (new_balance // 1_000_000)
+
+    if new_level != old_level:
+        cur.execute("UPDATE clans SET level = ? WHERE id = ?", (new_level, clan_id))
+        conn.commit()
+
+    return new_balance, new_level
 
 
 # ---------- NICKNAME HELPER ----------
@@ -193,6 +203,18 @@ def _clan_embed(clan: dict, members: list[tuple[int, str]], guild: discord.Guild
     embed.add_field(name="👥 Members", value=str(len(members)), inline=True)
     embed.add_field(name="⭐ Level", value=str(clan.get("level", 1)), inline=True)
 
+    # Progress to next level
+    vault = clan["balance"]
+    current_level = clan.get("level", 1)
+    progress = vault % 1_000_000
+    bar_filled = int(progress / 1_000_000 * 10)
+    bar = "█" * bar_filled + "░" * (10 - bar_filled)
+    embed.add_field(
+        name=f"📈 Progress to Lv.{current_level + 1}",
+        value=f"`{bar}` {progress:,} / 1,000,000",
+        inline=False,
+    )
+
     roster_lines = []
     for rank in reversed(RANKS):
         for uid, role in members:
@@ -222,7 +244,7 @@ class Clans(commands.Cog):
     async def clan(self, ctx: commands.Context):
         await ctx.send(
             "**🏰 Clan Commands**\n"
-            "`$clan create <name>` — create a clan *(requires 1M MoonShards)*\n"
+            "`$clan create <n>` — create a clan *(requires 1M MoonShards)*\n"
             "`$clan invite @user` — invite someone *(elder+ only)*\n"
             "`$clan promote @user` — promote a member\n"
             "`$clan demote @user` — demote a member\n"
@@ -239,7 +261,7 @@ class Clans(commands.Cog):
     @clan.command(name="create")
     async def clan_create(self, ctx: commands.Context, *, name: str = None):
         if not name:
-            return await ctx.send("❌ Usage: `$clan create <name>`")
+            return await ctx.send("❌ Usage: `$clan create <n>`")
         if len(name) > 30:
             return await ctx.send("❌ Clan name must be 30 characters or fewer.")
 
@@ -523,16 +545,24 @@ class Clans(commands.Cog):
         if bal < amount:
             return await ctx.send(f"❌ You only have **{bal:,}** MoonShards.")
 
+        old_level = clan.get("level", 1)
         _set_balance(ctx.author.id, bal - amount)
-        new_vault = _update_vault(clan["id"], amount)
+        new_vault, new_level = _update_vault(clan["id"], amount, old_level)
 
-        await ctx.send(embed=discord.Embed(
-            description=(
-                f"💰 Deposited **{amount:,}** MoonShards into **{clan['name']}**'s vault.\n"
-                f"Vault total: **{new_vault:,}**"
-            ),
-            color=0x2ecc71,
-        ))
+        leveled_up = new_level > old_level
+        progress = new_vault % 1_000_000
+        bar_filled = int(progress / 1_000_000 * 10)
+        bar = "█" * bar_filled + "░" * (10 - bar_filled)
+
+        desc = (
+            f"💰 Deposited **{amount:,}** MoonShards into **{clan['name']}**'s vault.\n"
+            f"Vault: **{new_vault:,}**  ·  ⭐ Level **{new_level}**\n"
+            f"`{bar}` {progress:,} / 1,000,000 to Lv.{new_level + 1}"
+        )
+        if leveled_up:
+            desc = f"🎉 **{clan['name']} leveled up to Level {new_level}!**\n\n" + desc
+
+        await ctx.send(embed=discord.Embed(description=desc, color=0x2ecc71 if not leveled_up else 0xf1c40f))
 
     # ---------- INFO ----------
 
@@ -545,7 +575,7 @@ class Clans(commands.Cog):
         else:
             clan, _ = _get_clan_of_user(ctx.author.id)
             if not clan:
-                return await ctx.send("❌ You're not in a clan. Use `$clan info <name>` to look one up.")
+                return await ctx.send("❌ You're not in a clan. Use `$clan info <n>` to look one up.")
 
         members = _get_clan_members(clan["id"])
         await ctx.send(embed=_clan_embed(clan, members, ctx.guild))
