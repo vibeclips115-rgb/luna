@@ -75,6 +75,7 @@ async def setup_hook():
         "cogs.automation",
         "cogs.statistics",
         "cogs.ai",
+        "cogs.clans",
     ]
     for cog in cogs:
         try:
