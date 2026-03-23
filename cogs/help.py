@@ -42,9 +42,9 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
                         "**2️⃣  💞 Social** — `$ship` `$marry` `$divorce` `$spouse` `$confess`\n"
                         "**3️⃣  💰 Economy** — `$balance` `$daily` `$pay` `$leaderboard`\n"
                         "**4️⃣  🎰 Gambling** — `$dice` `$cf` `$bj` `$sw` `$fish` `$slots` `$rob`\n"
-                        "**5️⃣  🛡️ Moderation** — `$kick` `$ban` `$softban` `$timeout` `$warn` `$clear` `$lock` `$snipe` `$modinfo` `$disable` `$enable`\n"
+                        "**5️⃣  🛡️ Moderation** — `$kick` `$ban` `$softban` `$timeout` `$warn` `$clear` `$lock` `$snipe` `$modinfo` `$newrole` `$arole` `$remrole` `$rolepurge` `$rolelist`\n"
                         "**6️⃣  ⚙️ Utility** — `$hug` `$kiss` `$punch` `$slap` `$pat` `$poke` `$bite` `$wave` `$kill` `$afk` `$av` `$quote`\n"
-                        "**7️⃣  🤖 AI** — `$ai disable ch` `$ai enable ch` `$disable ai` `$enable ai`\n"
+                        "**7️⃣  🤖 AI** — `$ai disable ch` `$ai enable ch` `$disable ai` `$enable ai` `$testqotd`\n"
                         "**8️⃣  📊 Statistics** — `$activity` `$stats` `$messages` `$globalstats`"
                     )
                 ),
@@ -157,6 +157,18 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
                 ("🟡  `$esnipe` / `$es`",                             "Recover the last edited message in this channel."),
                 ("🟡  `$modinfo`",                                     "Display the live role-permission breakdown for staff."),
                 ("🔴  `$disable ai` / `$enable ai`",                  "Toggle AI responses **server-wide**. Owner & Co-Owner only."),
+                (
+                    "🟡  Role Management",
+                    (
+                        "`$newrole <name>` — Create a new role\n"
+                        "`$role setposition <@role> <int>` — Move a role in the hierarchy\n"
+                        "`$rolename ch <@role> <new name>` — Rename a role\n"
+                        "`$arole <@role> @user` — Assign a role to a user\n"
+                        "`$remrole <@role> @user` — Remove a role from a user\n"
+                        "`$rolepurge @user` — Strip all non-managed roles from a user\n"
+                        "`$rolelist` — Paginated list of all server roles  *(◀️ ▶️ to navigate)*"
+                    )
+                ),
             ]
         ),
 
@@ -193,7 +205,7 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
         # 7 — AI
         page(
             "🤖  AI — Luna's Intelligence",
-            "> Luna is powered by AI.\n> She listens, she remembers context, and she has opinions.",
+            "> Luna is powered by **Groq** (`llama-3.3-70b-versatile`).\n> She listens, she remembers context, and she has opinions.",
             0x5865f2,
             [
                 (

@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord.ext import commands
 from datetime import timedelta, datetime
@@ -8,18 +9,17 @@ MOD_ROLE_ID = 1463136855414280214
 TRIAL_MOD_ROLE_ID = 1463136855347302512
 
 # Tiers
-MOD_ROLES = {MOD_ROLE_ID}                          # Full access
-TRIAL_MOD_ROLES = {TRIAL_MOD_ROLE_ID}              # No ban/kick
-ALL_MOD_ROLES = MOD_ROLES | TRIAL_MOD_ROLES        # Everyone with any mod role
+MOD_ROLES = {MOD_ROLE_ID}
+TRIAL_MOD_ROLES = {TRIAL_MOD_ROLE_ID}
+ALL_MOD_ROLES = MOD_ROLES | TRIAL_MOD_ROLES
 
-# Owners bypass all role checks entirely
+# Owners bypass all role checks
 OWNER_IDS = {1099923662267760745, 948613491999264838}  # Ryuken + Aizen
 
 
 # ---------- PERMISSION CHECKS ----------
 
 def has_any_mod_role():
-    """Check: Owner bypass OR Trial Mod OR Mod."""
     async def predicate(ctx: commands.Context):
         if ctx.author.id in OWNER_IDS:
             return True
@@ -31,7 +31,6 @@ def has_any_mod_role():
 
 
 def has_mod_role():
-    """Check: Owner bypass OR Mod only."""
     async def predicate(ctx: commands.Context):
         if ctx.author.id in OWNER_IDS:
             return True
@@ -116,7 +115,6 @@ class Moderation(commands.Cog):
     @commands.command()
     @has_mod_role()
     async def softban(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
-        """Ban then immediately unban — deletes recent messages without a permanent ban."""
         await member.ban(reason=f"Softban: {reason}", delete_message_days=1)
         await ctx.guild.unban(member, reason="Softban unban")
         await ctx.send(embed=_mod_embed(
@@ -469,14 +467,12 @@ class Moderation(commands.Cog):
     @commands.command(name="modinfo")
     @has_any_mod_role()
     async def modinfo(self, ctx: commands.Context):
-        """Display which roles can use which commands."""
         embed = discord.Embed(
             title="🛡️ MoonLight Mod Permissions",
             description="Here's a breakdown of what each staff role can do.",
             color=discord.Color.blurple(),
             timestamp=datetime.utcnow(),
         )
-
         embed.add_field(
             name="🔴 Mod only — <@&1463136855414280214>",
             value=(
@@ -487,7 +483,6 @@ class Moderation(commands.Cog):
             ),
             inline=False,
         )
-
         embed.add_field(
             name="🟡 Trial Mod + Mod — <@&1463136855347302512> <@&1463136855414280214>",
             value=(
@@ -505,13 +500,249 @@ class Moderation(commands.Cog):
                 "`$serverinfo / $server` — View server info\n"
                 "`$s / $snipe` — Snipe a deleted message\n"
                 "`$es / $esnipe` — Snipe an edited message\n"
-                "`$modinfo` — Show this panel"
+                "`$modinfo` — Show this panel\n"
+                "`$newrole` — Create a new role\n"
+                "`$role setposition` — Set a role's position\n"
+                "`$rolename ch` — Rename a role\n"
+                "`$arole` — Assign a role to a user\n"
+                "`$remrole` — Remove a role from a user\n"
+                "`$rolepurge` — Strip all roles from a user\n"
+                "`$rolelist` — Paginated list of all roles"
             ),
             inline=False,
         )
-
         embed.set_footer(text="MoonLight Moderation 🛡️")
         await ctx.send(embed=embed)
+
+    # ══════════════════════════════════════════
+    #  ROLE MANAGEMENT COMMANDS (Trial Mod+)
+    # ══════════════════════════════════════════
+
+    # ---------- NEWROLE ----------
+
+    @commands.command(name="newrole")
+    @has_any_mod_role()
+    async def newrole(self, ctx: commands.Context, *, name: str):
+        """Create a new role with the given name."""
+        if not name:
+            return await ctx.send("❌ Usage: `$newrole <name>`")
+
+        role = await ctx.guild.create_role(name=name, reason=f"Created by {ctx.author}")
+        await ctx.send(embed=_mod_embed(
+            "✅ Role Created",
+            discord.Color.green(),
+            [
+                ("🎭 Role", role.mention),
+                ("📛 Name", role.name),
+                ("🔧 Moderator", ctx.author.mention),
+            ]
+        ))
+
+    # ---------- ROLE SETPOSITION ----------
+
+    @commands.group(name="role", invoke_without_command=True)
+    @has_any_mod_role()
+    async def role_group(self, ctx: commands.Context):
+        """Role management group. Use `$role setposition <role> <position>`."""
+        await ctx.send(
+            "Usage:\n"
+            "`$role setposition <@role or name> <position>` — set a role's position in the hierarchy"
+        )
+
+    @role_group.command(name="setposition")
+    @has_any_mod_role()
+    async def role_setposition(self, ctx: commands.Context, role: discord.Role, position: int):
+        """Set a role's position in the hierarchy."""
+        if position < 1:
+            return await ctx.send("❌ Position must be 1 or higher.")
+
+        max_pos = len(ctx.guild.roles) - 1
+        if position > max_pos:
+            return await ctx.send(f"❌ Position can't exceed **{max_pos}** (total roles in server).")
+
+        old_pos = role.position
+        await role.edit(position=position, reason=f"Position set by {ctx.author}")
+        await ctx.send(embed=_mod_embed(
+            "📶 Role Position Updated",
+            discord.Color.blurple(),
+            [
+                ("🎭 Role", role.mention),
+                ("📍 Before", str(old_pos)),
+                ("📍 After", str(position)),
+                ("🔧 Moderator", ctx.author.mention),
+            ]
+        ))
+
+    # ---------- ROLENAME CH ----------
+
+    @commands.command(name="rolename")
+    @has_any_mod_role()
+    async def rolename(self, ctx: commands.Context, subcommand: str, role: discord.Role, *, new_name: str):
+        """Rename a role. Usage: $rolename ch <@role or name> <new name>"""
+        if subcommand.lower() != "ch":
+            return await ctx.send("❌ Usage: `$rolename ch <@role or name> <new name>`")
+        if not new_name:
+            return await ctx.send("❌ Provide a new name.")
+
+        old_name = role.name
+        await role.edit(name=new_name, reason=f"Renamed by {ctx.author}")
+        await ctx.send(embed=_mod_embed(
+            "✏️ Role Renamed",
+            discord.Color.blurple(),
+            [
+                ("🎭 Role", role.mention),
+                ("📛 Before", old_name),
+                ("📛 After", new_name),
+                ("🔧 Moderator", ctx.author.mention),
+            ]
+        ))
+
+    # ---------- AROLE ----------
+
+    @commands.command(name="arole")
+    @has_any_mod_role()
+    async def arole(self, ctx: commands.Context, role: discord.Role, member: discord.Member):
+        """Assign a role to a user. Usage: $arole <@role or name> @user"""
+        if role in member.roles:
+            return await ctx.send(f"❌ {member.mention} already has {role.mention}.")
+
+        await member.add_roles(role, reason=f"Assigned by {ctx.author}")
+        await ctx.send(embed=_mod_embed(
+            "✅ Role Assigned",
+            discord.Color.green(),
+            [
+                ("🎭 Role", role.mention),
+                ("👤 Member", member.mention),
+                ("🔧 Moderator", ctx.author.mention),
+            ]
+        ))
+
+    # ---------- REMROLE ----------
+
+    @commands.command(name="remrole")
+    @has_any_mod_role()
+    async def remrole(self, ctx: commands.Context, role: discord.Role, member: discord.Member):
+        """Remove a role from a user. Usage: $remrole <@role or name> @user"""
+        if role not in member.roles:
+            return await ctx.send(f"❌ {member.mention} doesn't have {role.mention}.")
+
+        await member.remove_roles(role, reason=f"Removed by {ctx.author}")
+        await ctx.send(embed=_mod_embed(
+            "🗑️ Role Removed",
+            discord.Color.orange(),
+            [
+                ("🎭 Role", role.mention),
+                ("👤 Member", member.mention),
+                ("🔧 Moderator", ctx.author.mention),
+            ]
+        ))
+
+    # ---------- ROLEPURGE ----------
+
+    @commands.command(name="rolepurge")
+    @has_any_mod_role()
+    async def rolepurge(self, ctx: commands.Context, member: discord.Member):
+        """Strip all non-managed roles from a user. Usage: $rolepurge @user"""
+        # Filter out @everyone and bot-managed roles (integrations)
+        removable = [
+            r for r in member.roles
+            if not r.is_default() and not r.managed
+        ]
+
+        if not removable:
+            return await ctx.send(f"❌ {member.mention} has no removable roles.")
+
+        await member.remove_roles(*removable, reason=f"Role purge by {ctx.author}")
+        await ctx.send(embed=_mod_embed(
+            "🧹 Roles Purged",
+            discord.Color.red(),
+            [
+                ("👤 Member", member.mention),
+                ("🗑️ Removed", f"**{len(removable)}** role(s)"),
+                ("🔧 Moderator", ctx.author.mention),
+            ]
+        ))
+
+    # ---------- ROLELIST ----------
+
+    @commands.command(name="rolelist")
+    @has_any_mod_role()
+    async def rolelist(self, ctx: commands.Context):
+        """Paginated list of all roles in the server (highest → lowest)."""
+        # Sort highest position first, skip @everyone
+        roles = sorted(
+            [r for r in ctx.guild.roles if not r.is_default()],
+            key=lambda r: r.position,
+            reverse=True,
+        )
+
+        if not roles:
+            return await ctx.send("❌ This server has no roles.")
+
+        # Chunk into pages of 15 roles each
+        CHUNK = 15
+        chunks = [roles[i:i + CHUNK] for i in range(0, len(roles), CHUNK)]
+        total_pages = len(chunks)
+
+        def make_embed(page: int) -> discord.Embed:
+            chunk = chunks[page]
+            lines = []
+            for r in chunk:
+                members = len(r.members)
+                color_hex = f"#{r.color.value:06X}" if r.color.value else "#000000"
+                lines.append(f"`#{r.position:>3}`  {r.mention}  ·  {members} member{'s' if members != 1 else ''}  ·  {color_hex}")
+
+            embed = discord.Embed(
+                title=f"🎭 Role List — {ctx.guild.name}",
+                description="\n".join(lines),
+                color=discord.Color.blurple(),
+                timestamp=datetime.utcnow(),
+            )
+            embed.set_footer(text=f"MoonLight Moderation 🛡️  ·  Page {page + 1}/{total_pages}  ·  {len(roles)} roles total")
+            return embed
+
+        current = 0
+        msg = await ctx.send(embed=make_embed(current))
+
+        if total_pages == 1:
+            return  # No need for reactions on a single page
+
+        for emoji in ["◀️", "▶️", "❌"]:
+            await msg.add_reaction(emoji)
+
+        def check(reaction: discord.Reaction, user: discord.User) -> bool:
+            return (
+                user.id == ctx.author.id
+                and reaction.message.id == msg.id
+                and str(reaction.emoji) in ["◀️", "▶️", "❌"]
+            )
+
+        while True:
+            try:
+                reaction, user = await ctx.bot.wait_for("reaction_add", timeout=60.0, check=check)
+                emoji = str(reaction.emoji)
+
+                if emoji == "▶️":
+                    current = (current + 1) % total_pages
+                elif emoji == "◀️":
+                    current = (current - 1) % total_pages
+                elif emoji == "❌":
+                    await msg.delete()
+                    return
+
+                await msg.edit(embed=make_embed(current))
+
+                try:
+                    await msg.remove_reaction(reaction, user)
+                except discord.Forbidden:
+                    pass
+
+            except asyncio.TimeoutError:
+                try:
+                    await msg.clear_reactions()
+                except discord.Forbidden:
+                    pass
+                break
 
 
 # ---------- SETUP ----------
