@@ -85,5 +85,15 @@ async def setup_hook():
     print("✅ Done loading cogs")
 
 
+# ---------- GLOBAL CHECKS ----------
+
+@bot.check
+async def no_dms(ctx):
+    if isinstance(ctx.channel, discord.DMChannel):
+        await ctx.send("i don't do DMs. use me in a server.")
+        return False
+    return True
+
+
 # ---------- RUN ----------
 bot.run(os.getenv("DISCORD_TOKEN"))
