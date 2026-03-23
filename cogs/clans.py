@@ -230,7 +230,8 @@ class Clans(commands.Cog):
             "`$clan leave` — leave your clan\n"
             "`$clan delete` — permanently delete your clan *(owner only)*\n"
             "`$clan deposit <amount>` — deposit MoonShards into the vault\n"
-            "`$clan info [name]` — view clan info"
+            "`$clan info [name]` — view clan info\n"
+            "`$clan leaderboard` — top 10 clans"
         )
 
     # ---------- CREATE ----------
@@ -548,6 +549,48 @@ class Clans(commands.Cog):
 
         members = _get_clan_members(clan["id"])
         await ctx.send(embed=_clan_embed(clan, members, ctx.guild))
+
+    # ---------- LEADERBOARD ----------
+
+    @clan.command(name="leaderboard", aliases=["lb"])
+    async def clan_leaderboard(self, ctx: commands.Context):
+        """Top 10 clans ranked by level, then vault balance, then member count."""
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT c.id, c.name, c.level, c.balance,
+                   COUNT(cm.user_id) as member_count
+            FROM clans c
+            LEFT JOIN clan_members cm ON cm.clan_id = c.id
+            GROUP BY c.id
+            ORDER BY c.level DESC, c.balance DESC, member_count DESC
+            LIMIT 10
+        """)
+        rows = cur.fetchall()
+
+        if not rows:
+            return await ctx.send("❌ No clans exist yet.")
+
+        user_clan, _ = _get_clan_of_user(ctx.author.id)
+        user_clan_id = user_clan["id"] if user_clan else None
+
+        medals = ["🥇", "🥈", "🥉"]
+        lines = []
+        for i, (clan_id, name, level, balance, member_count) in enumerate(rows):
+            pos = medals[i] if i < 3 else f"`#{i + 1}`"
+            hl = "**" if clan_id == user_clan_id else ""
+            lines.append(
+                f"{pos} {hl}{name}{hl}\n"
+                f"　⭐ Lv.{level}  💰 {balance:,}  👥 {member_count}"
+            )
+
+        embed = discord.Embed(
+            title="🏆 Clan Leaderboard",
+            description="\n\n".join(lines),
+            color=0xf1c40f,
+            timestamp=datetime.utcnow(),
+        )
+        embed.set_footer(text="MoonLight ✦ Ranked by Level → Vault → Members")
+        await ctx.send(embed=embed)
 
 
 # ---------- SETUP ----------
