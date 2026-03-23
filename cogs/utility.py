@@ -87,7 +87,6 @@ KILL_MESSAGES = [
 # ---------- HELPER ----------
 
 async def get_gif(action: str) -> str | None:
-    """Fetch a GIF URL from nekos.best API."""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -104,7 +103,6 @@ async def get_gif(action: str) -> str | None:
 
 
 async def send_action(ctx: commands.Context, member: discord.Member, action: str):
-    """Generic handler for all action commands."""
     emoji, verb, color = ACTIONS[action]
 
     if member.id == ctx.author.id:
@@ -189,7 +187,6 @@ class Utility(commands.Cog):
     async def kill(self, ctx: commands.Context, member: discord.Member = None):
         if not member:
             return await ctx.send("❌ Kill who? Mention someone.")
-
         if member.id == ctx.author.id:
             return await ctx.send(random.choice(KILL_SELF_RESPONSES))
         if member.bot:
@@ -200,11 +197,7 @@ class Utility(commands.Cog):
             author=ctx.author.mention,
             target=member.mention,
         )
-
-        embed = discord.Embed(
-            description=f"💀 {msg}",
-            color=discord.Color.dark_red(),
-        )
+        embed = discord.Embed(description=f"💀 {msg}", color=discord.Color.dark_red())
         if url:
             embed.set_image(url=url)
         embed.set_footer(text="MoonLight • no survivors")
@@ -218,7 +211,6 @@ class Utility(commands.Cog):
             "reason": reason,
             "time": discord.utils.utcnow(),
         }
-
         embed = discord.Embed(title="💤 AFK Enabled", color=discord.Color.blurple())
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.add_field(name="👤 User", value=ctx.author.mention, inline=False)
@@ -292,9 +284,9 @@ class Utility(commands.Cog):
     async def quote(self, ctx: commands.Context, *, text: str = None):
         """Post a quote card.
         Usage:
-          $quote <text>               → quotes yourself
-          $quote @user <text>         → quotes another user
-          $quote (reply to message)   → quotes the replied message & its author
+          $quote <text>                    → quotes yourself
+          $quote @user <text>              → quotes another user
+          (reply to a message) + $quote   → quotes that message & its author
         """
         quote_channel = self.bot.get_channel(QUOTE_CHANNEL_ID)
         if not quote_channel:
@@ -311,7 +303,6 @@ class Utility(commands.Cog):
                 quote_text = ref_msg.content.strip()
             except Exception:
                 return await ctx.send("❌ Couldn't fetch the replied message.")
-
             if not quote_text:
                 return await ctx.send("❌ The replied message has no text to quote.")
 
@@ -331,7 +322,7 @@ class Utility(commands.Cog):
                 "❌ Usage:\n"
                 "`$quote <text>` — quote yourself\n"
                 "`$quote @user <text>` — quote someone else\n"
-                "*(reply to a message)* + `$quote` — quote that message"
+                "*(reply to a message)* `$quote` — quote that message"
             )
 
         if not quote_text:
@@ -349,7 +340,7 @@ class Utility(commands.Cog):
         except Exception:
             return await ctx.send("❌ Couldn't fetch that user's avatar.")
 
-        raw_name = target.display_name
+        raw_name  = target.display_name
         safe_name = target.name
 
         # ── Delete invoking message ──
@@ -358,33 +349,29 @@ class Utility(commands.Cog):
         except discord.Forbidden:
             pass
 
-        # ── Build card ──
+        # ── Build card (original design, spacing bug fixed) ──
         def build_card() -> io.BytesIO:
-            import subprocess, os, math
+            import subprocess, os
 
-            W, H = 1000, 420
+            W, H     = 1000, 480
+            BG_COLOR = (8, 8, 10)
+            TEXT_COLOR = (245, 242, 255)
+            NAME_COLOR = (180, 180, 180)
+            DIM_COLOR  = (55, 45, 80)
 
-            # ── Palette ──
-            BG          = (10, 10, 14)
-            CARD_BG     = (18, 18, 24)
-            ACCENT      = (139, 92, 246)   # violet
-            QUOTE_COL   = (238, 235, 255)
-            NAME_COL    = (160, 150, 200)
-            DIM_COL     = (50, 45, 70)
-            WHITE       = (255, 255, 255)
-
-            # ── Font loader ──
-            def find_font(bold: bool) -> str | None:
-                candidates = [
+            def find_font_path(bold: bool) -> str | None:
+                noto_candidates = [
                     "/root/.nix-profile/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold
                         else "/root/.nix-profile/share/fonts/truetype/noto/NotoSans-Regular.ttf",
                     "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold
                         else "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
                 ]
-                for p in candidates:
+                for p in noto_candidates:
                     if os.path.exists(p):
                         return p
-                for name in (["NotoSans:Bold", "DejaVuSans-Bold"] if bold else ["NotoSans", "DejaVuSans"]):
+                fc_names = ["NotoSans:Bold" if bold else "NotoSans",
+                            "DejaVuSans-Bold" if bold else "DejaVuSans"]
+                for name in fc_names:
                     try:
                         r = subprocess.run(["fc-match", "--format=%{file}", name],
                                            capture_output=True, text=True)
@@ -396,81 +383,45 @@ class Utility(commands.Cog):
                 return None
 
             def load(bold: bool, size: int) -> ImageFont.FreeTypeFont:
-                p = find_font(bold)
+                p = find_font_path(bold)
                 return ImageFont.truetype(p, size) if p else ImageFont.load_default(size=size)
 
-            font_quote   = load(False, 40)
-            font_open_q  = load(False, 90)   # decorative " glyph
-            font_name    = load(True,  24)
-            font_footer  = load(False, 15)
+            font_quote  = load(False, 46)
+            font_name   = load(False, 26)
+            font_footer = load(False, 17)
 
-            # ── Base canvas ──
-            img  = Image.new("RGB", (W, H), BG)
+            display_name = raw_name if raw_name.isascii() else safe_name
+
+            img = Image.new("RGB", (W, H), BG_COLOR)
+
+            # Avatar: fill left half, desaturated, fade right into black
+            AV_W = W // 2
+            avatar_raw = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+            avatar_raw = avatar_raw.resize((AV_W, H), Image.LANCZOS)
+
+            gray = avatar_raw.convert("L").convert("RGBA")
+            avatar_raw = Image.blend(avatar_raw, gray, alpha=0.75)
+
+            fade_data = []
+            for y in range(H):
+                for x in range(AV_W):
+                    t = max(0.0, min(1.0, (x / AV_W - 0.40) / 0.55))
+                    fade_data.append(int(255 * (1.0 - t)))
+            fade = Image.new("L", (AV_W, H))
+            fade.putdata(fade_data)
+            avatar_raw.putalpha(fade)
+            img.paste(avatar_raw, (0, 0), avatar_raw)
+
             draw = ImageDraw.Draw(img)
 
-            # ── Subtle radial glow in top-left ──
-            glow = Image.new("RGB", (W, H), BG)
-            gd   = ImageDraw.Draw(glow)
-            for r in range(300, 0, -1):
-                alpha = int(28 * (1 - r / 300))
-                col = tuple(min(255, BG[i] + alpha) for i in range(3))
-                gd.ellipse((-r + 160, -r + 160, r + 160, r + 160), fill=col)
-            img = Image.blend(img, glow, alpha=0.9)
-            draw = ImageDraw.Draw(img)
+            TEXT_X = W // 2 + 20
+            TEXT_W = W - TEXT_X - 50
 
-            # ── Card rectangle (rounded via mask trick) ──
-            CARD_PAD = 28
-            card = Image.new("RGB", (W - 2*CARD_PAD, H - 2*CARD_PAD), CARD_BG)
-            img.paste(card, (CARD_PAD, CARD_PAD))
-            draw = ImageDraw.Draw(img)
-
-            # ── Left accent bar ──
-            BAR_X = CARD_PAD + 28
-            BAR_Y1 = CARD_PAD + 36
-            BAR_Y2 = H - CARD_PAD - 36
-            draw.rectangle([BAR_X, BAR_Y1, BAR_X + 4, BAR_Y2], fill=ACCENT)
-
-            # ── Avatar: circular, right side ──
-            AV_SIZE = 160
-            AV_X    = W - CARD_PAD - 48 - AV_SIZE
-            AV_Y    = (H - AV_SIZE) // 2
-
-            av_raw = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize(
-                (AV_SIZE, AV_SIZE), Image.LANCZOS
-            )
-
-            # Desaturate slightly
-            gray = av_raw.convert("L").convert("RGBA")
-            av_raw = Image.blend(av_raw, gray, alpha=0.35)
-
-            # Circular mask
-            mask = Image.new("L", (AV_SIZE, AV_SIZE), 0)
-            ImageDraw.Draw(mask).ellipse((0, 0, AV_SIZE, AV_SIZE), fill=255)
-            av_raw.putalpha(mask)
-
-            img.paste(av_raw, (AV_X, AV_Y), av_raw)
-
-            # Thin violet ring around avatar
-            ring = ImageDraw.Draw(img)
-            ring.ellipse(
-                [AV_X - 3, AV_Y - 3, AV_X + AV_SIZE + 3, AV_Y + AV_SIZE + 3],
-                outline=ACCENT, width=2
-            )
-            draw = ImageDraw.Draw(img)
-
-            # ── Text area ──
-            TEXT_X  = BAR_X + 24
-            TEXT_W  = AV_X - TEXT_X - 30
-
-            # Decorative opening quote mark
-            draw.text((TEXT_X - 4, CARD_PAD + 18), "\u201c", font=font_open_q, fill=(*ACCENT, 60))
-
-            # Word-wrap — FIX: join with a space, not empty string
-            words  = quote_text.split()
-            lines  = []
-            line   = ""
+            # Word-wrap with proper spacing
+            words = quote_text.split()
+            lines, line = [], ""
             for word in words:
-                test = (line + " " + word).strip()   # ← space fix
+                test = (line + " " + word).strip()
                 bbox = draw.textbbox((0, 0), test, font=font_quote)
                 if bbox[2] - bbox[0] > TEXT_W:
                     if line:
@@ -481,28 +432,24 @@ class Utility(commands.Cog):
             if line:
                 lines.append(line)
 
-            LINE_H   = 54
-            total_h  = len(lines) * LINE_H
-            name_gap = 20
-            attr_h   = 30
-            block_h  = total_h + name_gap + attr_h
-            text_y   = (H - block_h) // 2 + 10
+            line_h  = 58
+            total_h = len(lines) * line_h
+            attr_h  = 36
+            gap     = 18
+            block_h = total_h + gap + attr_h
+            text_y  = (H - block_h) // 2
 
             for ln in lines:
-                draw.text((TEXT_X, text_y), ln, font=font_quote, fill=QUOTE_COL)
-                text_y += LINE_H
+                draw.text((TEXT_X, text_y), ln, font=font_quote, fill=TEXT_COLOR)
+                text_y += line_h
 
-            # Attribution
-            text_y += name_gap
-            display_name = raw_name if raw_name.isascii() else safe_name
-            attr = f"— {display_name}"
-            draw.text((TEXT_X + 2, text_y), attr, font=font_name, fill=NAME_COL)
+            text_y += gap
+            draw.text((TEXT_X + 4, text_y), f"~ {display_name}", font=font_name, fill=NAME_COLOR)
 
-            # ── Footer ──
             footer = "MoonLight"
-            fb = draw.textbbox((0, 0), footer, font=font_footer)
-            fw = fb[2] - fb[0]
-            draw.text(((W - fw) // 2, H - CARD_PAD - 20), footer, font=font_footer, fill=DIM_COL)
+            fb  = draw.textbbox((0, 0), footer, font=font_footer)
+            fw  = fb[2] - fb[0]
+            draw.text(((W - fw) // 2, H - 26), footer, font=font_footer, fill=DIM_COLOR)
 
             buf = io.BytesIO()
             img.save(buf, format="PNG")
