@@ -4,6 +4,9 @@ from discord.ext import commands
 from datetime import datetime
 
 # Import the shared db connection and helpers from your existing db module
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db import conn, get_balance, set_balance
 
 # ---------- RANK HIERARCHY ----------
