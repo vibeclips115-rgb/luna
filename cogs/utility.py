@@ -14,17 +14,17 @@ afk_users: dict[int, dict] = {}
 
 # ---------- NEKOS.BEST ACTIONS ----------
 ACTIONS = {
-    "hug":   ("🤗", "hugged",  discord.Color.green()),
-    "kiss":  ("💋", "kissed",  discord.Color.pink()),
-    "punch": ("🥊", "punched", discord.Color.red()),
-    "slap":  ("👋", "slapped", discord.Color.dark_red()),
-    "pat":   ("🫶", "patted",  discord.Color.blurple()),
-    "poke":  ("👉", "poked",   discord.Color.orange()),
-    "bite":  ("😬", "bit",     discord.Color.dark_orange()),
-    "wave":  ("👋", "waved at",discord.Color.blurple()),
-    "cry":   ("😢", "cried at",discord.Color.blue()),
+    "hug":   ("🤗", "hugged",     discord.Color.green()),
+    "kiss":  ("💋", "kissed",     discord.Color.pink()),
+    "punch": ("🥊", "punched",    discord.Color.red()),
+    "slap":  ("👋", "slapped",    discord.Color.dark_red()),
+    "pat":   ("🫶", "patted",     discord.Color.blurple()),
+    "poke":  ("👉", "poked",      discord.Color.orange()),
+    "bite":  ("😬", "bit",        discord.Color.dark_orange()),
+    "wave":  ("👋", "waved at",   discord.Color.blurple()),
+    "cry":   ("😢", "cried at",   discord.Color.blue()),
     "blush": ("😳", "made blush", discord.Color.brand_red()),
-    "kill":  ("💀", "killed",  discord.Color.dark_red()),
+    "kill":  ("💀", "killed",     discord.Color.dark_red()),
 }
 
 # ---------- SELF TARGET RESPONSES ----------
@@ -137,56 +137,48 @@ class Utility(commands.Cog):
 
     @commands.command()
     async def hug(self, ctx: commands.Context, member: discord.Member = None):
-        """Hug someone."""
         if not member:
             return await ctx.send("❌ Hug who? Mention someone.")
         await send_action(ctx, member, "hug")
 
     @commands.command()
     async def kiss(self, ctx: commands.Context, member: discord.Member = None):
-        """Kiss someone."""
         if not member:
             return await ctx.send("❌ Kiss who? Mention someone.")
         await send_action(ctx, member, "kiss")
 
     @commands.command()
     async def punch(self, ctx: commands.Context, member: discord.Member = None):
-        """Punch someone."""
         if not member:
             return await ctx.send("❌ Punch who? Mention someone.")
         await send_action(ctx, member, "punch")
 
     @commands.command()
     async def slap(self, ctx: commands.Context, member: discord.Member = None):
-        """Slap someone."""
         if not member:
             return await ctx.send("❌ Slap who? Mention someone.")
         await send_action(ctx, member, "slap")
 
     @commands.command()
     async def pat(self, ctx: commands.Context, member: discord.Member = None):
-        """Pat someone on the head."""
         if not member:
             return await ctx.send("❌ Pat who? Mention someone.")
         await send_action(ctx, member, "pat")
 
     @commands.command()
     async def poke(self, ctx: commands.Context, member: discord.Member = None):
-        """Poke someone."""
         if not member:
             return await ctx.send("❌ Poke who? Mention someone.")
         await send_action(ctx, member, "poke")
 
     @commands.command()
     async def bite(self, ctx: commands.Context, member: discord.Member = None):
-        """Bite someone."""
         if not member:
             return await ctx.send("❌ Bite who? Mention someone.")
         await send_action(ctx, member, "bite")
 
     @commands.command()
     async def wave(self, ctx: commands.Context, member: discord.Member = None):
-        """Wave at someone."""
         if not member:
             return await ctx.send("❌ Wave at who? Mention someone.")
         await send_action(ctx, member, "wave")
@@ -195,19 +187,15 @@ class Utility(commands.Cog):
 
     @commands.command()
     async def kill(self, ctx: commands.Context, member: discord.Member = None):
-        """Kill someone. Dramatically."""
         if not member:
             return await ctx.send("❌ Kill who? Mention someone.")
 
         if member.id == ctx.author.id:
             return await ctx.send(random.choice(KILL_SELF_RESPONSES))
-
         if member.bot:
             return await ctx.send(random.choice(KILL_BOT_RESPONSES))
 
-        # nekos.best has no kill/fight endpoint — punch is the closest available
         url = await get_gif("punch")
-
         msg = random.choice(KILL_MESSAGES).format(
             author=ctx.author.mention,
             target=member.mention,
@@ -226,16 +214,12 @@ class Utility(commands.Cog):
 
     @commands.command()
     async def afk(self, ctx: commands.Context, *, reason: str = "No reason provided"):
-        """Set your AFK status."""
         afk_users[ctx.author.id] = {
             "reason": reason,
             "time": discord.utils.utcnow(),
         }
 
-        embed = discord.Embed(
-            title="💤 AFK Enabled",
-            color=discord.Color.blurple(),
-        )
+        embed = discord.Embed(title="💤 AFK Enabled", color=discord.Color.blurple())
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.add_field(name="👤 User", value=ctx.author.mention, inline=False)
         embed.add_field(name="📌 Reason", value=reason, inline=False)
@@ -247,28 +231,22 @@ class Utility(commands.Cog):
         if message.author.bot:
             return
 
-        # Notify if an AFK user is mentioned
         for user in message.mentions:
             if user.id in afk_users:
                 data = afk_users[user.id]
-                embed = discord.Embed(
-                    title="💤 That user is AFK",
-                    color=discord.Color.orange(),
-                )
+                embed = discord.Embed(title="💤 That user is AFK", color=discord.Color.orange())
                 embed.set_thumbnail(url=user.display_avatar.url)
                 embed.add_field(name="👤 User", value=user.mention, inline=True)
                 embed.add_field(name="📌 Reason", value=data["reason"], inline=True)
                 embed.add_field(name="🕐 AFK Since", value=discord.utils.format_dt(data['time'], style='R'), inline=False)
                 await message.channel.send(embed=embed)
 
-        # Don't remove AFK on command usage
         prefix = self.bot.command_prefix
         if message.content.startswith(
             tuple(prefix) if isinstance(prefix, (list, tuple)) else prefix
         ):
             return
 
-        # Remove AFK on normal message and show duration
         if message.author.id in afk_users:
             data = afk_users.pop(message.author.id)
             duration = discord.utils.utcnow() - data["time"]
@@ -295,9 +273,7 @@ class Utility(commands.Cog):
 
     @commands.command(aliases=["avatar", "pfp"])
     async def av(self, ctx: commands.Context, member: Optional[discord.Member] = None):
-        """Show a user's avatar."""
         user = member or ctx.author
-
         embed = discord.Embed(
             title=f"🖼️ {user.display_name}'s Avatar",
             color=discord.Color.blurple(),
@@ -314,75 +290,101 @@ class Utility(commands.Cog):
     @commands.command()
     @commands.cooldown(1, 15, commands.BucketType.user)
     async def quote(self, ctx: commands.Context, *, text: str = None):
-        """Post a quote card. Usage: $quote <text> or $quote @user <text>"""
-        if not text:
-            return await ctx.send("❌ Usage: `$quote <text>` or `$quote @user <text>`")
-
-        # Check if the message starts with a mention — if so, extract member + remaining text
-        target = ctx.author
-        if ctx.message.mentions:
-            mentioned = ctx.message.mentions[0]
-            # Strip the mention from the front of the text
-            for fmt in [f"<@{mentioned.id}>", f"<@!{mentioned.id}>"]:
-                if text.startswith(fmt):
-                    text = text[len(fmt):].strip()
-                    target = mentioned
-                    break
-
-        if not text:
-            return await ctx.send("❌ You mentioned someone but forgot the quote text.")
-        if len(text) > 220:
-            return await ctx.send("❌ Quote is too long. Keep it under 220 characters.")
-
+        """Post a quote card.
+        Usage:
+          $quote <text>               → quotes yourself
+          $quote @user <text>         → quotes another user
+          $quote (reply to message)   → quotes the replied message & its author
+        """
         quote_channel = self.bot.get_channel(QUOTE_CHANNEL_ID)
         if not quote_channel:
             return await ctx.send("❌ Quote channel not found.")
 
-        # Delete invoking message so it feels clean
+        target = ctx.author
+        quote_text = None
+
+        # ── CASE 1: Reply-based quote ($quote with no args, replying to a message) ──
+        if ctx.message.reference and not text:
+            try:
+                ref_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+                target = ref_msg.author
+                quote_text = ref_msg.content.strip()
+            except Exception:
+                return await ctx.send("❌ Couldn't fetch the replied message.")
+
+            if not quote_text:
+                return await ctx.send("❌ The replied message has no text to quote.")
+
+        # ── CASE 2: Normal usage ($quote text or $quote @user text) ──
+        elif text:
+            if ctx.message.mentions:
+                mentioned = ctx.message.mentions[0]
+                for fmt in [f"<@{mentioned.id}>", f"<@!{mentioned.id}>"]:
+                    if text.startswith(fmt):
+                        text = text[len(fmt):].strip()
+                        target = mentioned
+                        break
+            quote_text = text.strip()
+
+        else:
+            return await ctx.send(
+                "❌ Usage:\n"
+                "`$quote <text>` — quote yourself\n"
+                "`$quote @user <text>` — quote someone else\n"
+                "*(reply to a message)* + `$quote` — quote that message"
+            )
+
+        if not quote_text:
+            return await ctx.send("❌ You mentioned someone but forgot the quote text.")
+        if len(quote_text) > 220:
+            return await ctx.send("❌ Quote is too long. Keep it under 220 characters.")
+
+        # ── Fetch avatar ──
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    str(target.display_avatar.replace(format="png", size=256))
+                ) as resp:
+                    avatar_bytes = await resp.read()
+        except Exception:
+            return await ctx.send("❌ Couldn't fetch that user's avatar.")
+
+        raw_name = target.display_name
+        safe_name = target.name
+
+        # ── Delete invoking message ──
         try:
             await ctx.message.delete()
         except discord.Forbidden:
             pass
 
-        # Fetch target's avatar bytes
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(str(target.display_avatar.replace(format="png", size=256))) as resp:
-                    avatar_bytes = await resp.read()
-        except Exception:
-            return
-
-        # Use global name (latin fallback) if display name has unrenderable chars
-        raw_name  = target.display_name
-        # Strip to ASCII as fallback — keep original for NotoSans attempt
-        safe_name = target.name  # always ASCII-safe Discord username
-
-        # Build image synchronously inside executor so event loop stays free
+        # ── Build card ──
         def build_card() -> io.BytesIO:
-            import subprocess, os
+            import subprocess, os, math
 
-            W, H        = 1000, 480
-            BG_COLOR    = (8, 8, 10)
-            TEXT_COLOR  = (245, 242, 255)
-            NAME_COLOR  = (180, 180, 180)
-            DIM_COLOR   = (55, 45, 80)
+            W, H = 1000, 420
 
-            # Font loader — explicit file paths for Nix-installed fonts
-            def find_font_path(bold: bool) -> str | None:
-                # Try explicit Nix noto-fonts paths first
-                noto_candidates = [
+            # ── Palette ──
+            BG          = (10, 10, 14)
+            CARD_BG     = (18, 18, 24)
+            ACCENT      = (139, 92, 246)   # violet
+            QUOTE_COL   = (238, 235, 255)
+            NAME_COL    = (160, 150, 200)
+            DIM_COL     = (50, 45, 70)
+            WHITE       = (255, 255, 255)
+
+            # ── Font loader ──
+            def find_font(bold: bool) -> str | None:
+                candidates = [
                     "/root/.nix-profile/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold
                         else "/root/.nix-profile/share/fonts/truetype/noto/NotoSans-Regular.ttf",
                     "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold
                         else "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
                 ]
-                for p in noto_candidates:
+                for p in candidates:
                     if os.path.exists(p):
                         return p
-                # Fall back to fc-match
-                fc_names = ["NotoSans:Bold" if bold else "NotoSans",
-                            "DejaVuSans-Bold" if bold else "DejaVuSans"]
-                for name in fc_names:
+                for name in (["NotoSans:Bold", "DejaVuSans-Bold"] if bold else ["NotoSans", "DejaVuSans"]):
                     try:
                         r = subprocess.run(["fc-match", "--format=%{file}", name],
                                            capture_output=True, text=True)
@@ -394,70 +396,81 @@ class Utility(commands.Cog):
                 return None
 
             def load(bold: bool, size: int) -> ImageFont.FreeTypeFont:
-                p = find_font_path(bold)
-                if p:
-                    return ImageFont.truetype(p, size)
-                return ImageFont.load_default(size=size)
+                p = find_font(bold)
+                return ImageFont.truetype(p, size) if p else ImageFont.load_default(size=size)
 
-            font_quote  = load(False, 46)
-            font_name   = load(False, 26)
-            font_footer = load(False, 17)
+            font_quote   = load(False, 40)
+            font_open_q  = load(False, 90)   # decorative " glyph
+            font_name    = load(True,  24)
+            font_footer  = load(False, 15)
 
-            # Try raw display name first; fall back to safe ASCII username
-            font_path = find_font_path(False)
-            if font_path:
-                try:
-                    test_font = ImageFont.truetype(font_path, 26)
-                    # If font can't render the name, boxes appear — use safe fallback
-                    display_name = raw_name
-                except Exception:
-                    display_name = safe_name
-            else:
-                display_name = safe_name
-
-            font_quote  = load(False, 46)   # big, clean quote text
-            font_name   = load(False, 26)   # subtle attribution
-            font_footer = load(False, 17)
-
-            # ── Canvas ──────────────────────────────────────────
-            img  = Image.new("RGB", (W, H), BG_COLOR)
-
-            # Avatar: fill entire left half, desaturated, fading right into black
-            AV_W = W // 2
-            avatar_raw = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-            avatar_raw = avatar_raw.resize((AV_W, H), Image.LANCZOS)
-
-            # Desaturate avatar
-            gray = avatar_raw.convert("L").convert("RGBA")
-            avatar_raw = Image.blend(avatar_raw, gray, alpha=0.75)
-
-            # Horizontal fade mask: opaque on left, transparent on right
-            fade = Image.new("L", (AV_W, H))
-            for x in range(AV_W):
-                # Start fading at 40% width, fully transparent at 95%
-                t = max(0.0, (x / AV_W - 0.40) / 0.55)
-                fade.putpixel((x, 0), 0)  # init
-            fade_data = []
-            for y in range(H):
-                for x in range(AV_W):
-                    t = max(0.0, min(1.0, (x / AV_W - 0.40) / 0.55))
-                    fade_data.append(int(255 * (1.0 - t)))
-            fade.putdata(fade_data)
-
-            avatar_raw.putalpha(fade)
-            img.paste(avatar_raw, (0, 0), avatar_raw)
-
+            # ── Base canvas ──
+            img  = Image.new("RGB", (W, H), BG)
             draw = ImageDraw.Draw(img)
 
-            # ── Right side text area ─────────────────────────────
-            TEXT_X     = W // 2 + 20   # left edge of text column
-            TEXT_W     = W - TEXT_X - 50  # available width
+            # ── Subtle radial glow in top-left ──
+            glow = Image.new("RGB", (W, H), BG)
+            gd   = ImageDraw.Draw(glow)
+            for r in range(300, 0, -1):
+                alpha = int(28 * (1 - r / 300))
+                col = tuple(min(255, BG[i] + alpha) for i in range(3))
+                gd.ellipse((-r + 160, -r + 160, r + 160, r + 160), fill=col)
+            img = Image.blend(img, glow, alpha=0.9)
+            draw = ImageDraw.Draw(img)
 
-            # Word-wrap quote
-            words = text.split()
-            lines, line = [], ""
+            # ── Card rectangle (rounded via mask trick) ──
+            CARD_PAD = 28
+            card = Image.new("RGB", (W - 2*CARD_PAD, H - 2*CARD_PAD), CARD_BG)
+            img.paste(card, (CARD_PAD, CARD_PAD))
+            draw = ImageDraw.Draw(img)
+
+            # ── Left accent bar ──
+            BAR_X = CARD_PAD + 28
+            BAR_Y1 = CARD_PAD + 36
+            BAR_Y2 = H - CARD_PAD - 36
+            draw.rectangle([BAR_X, BAR_Y1, BAR_X + 4, BAR_Y2], fill=ACCENT)
+
+            # ── Avatar: circular, right side ──
+            AV_SIZE = 160
+            AV_X    = W - CARD_PAD - 48 - AV_SIZE
+            AV_Y    = (H - AV_SIZE) // 2
+
+            av_raw = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize(
+                (AV_SIZE, AV_SIZE), Image.LANCZOS
+            )
+
+            # Desaturate slightly
+            gray = av_raw.convert("L").convert("RGBA")
+            av_raw = Image.blend(av_raw, gray, alpha=0.35)
+
+            # Circular mask
+            mask = Image.new("L", (AV_SIZE, AV_SIZE), 0)
+            ImageDraw.Draw(mask).ellipse((0, 0, AV_SIZE, AV_SIZE), fill=255)
+            av_raw.putalpha(mask)
+
+            img.paste(av_raw, (AV_X, AV_Y), av_raw)
+
+            # Thin violet ring around avatar
+            ring = ImageDraw.Draw(img)
+            ring.ellipse(
+                [AV_X - 3, AV_Y - 3, AV_X + AV_SIZE + 3, AV_Y + AV_SIZE + 3],
+                outline=ACCENT, width=2
+            )
+            draw = ImageDraw.Draw(img)
+
+            # ── Text area ──
+            TEXT_X  = BAR_X + 24
+            TEXT_W  = AV_X - TEXT_X - 30
+
+            # Decorative opening quote mark
+            draw.text((TEXT_X - 4, CARD_PAD + 18), "\u201c", font=font_open_q, fill=(*ACCENT, 60))
+
+            # Word-wrap — FIX: join with a space, not empty string
+            words  = quote_text.split()
+            lines  = []
+            line   = ""
             for word in words:
-                test = (line + "" "" + word).strip()
+                test = (line + " " + word).strip()   # ← space fix
                 bbox = draw.textbbox((0, 0), test, font=font_quote)
                 if bbox[2] - bbox[0] > TEXT_W:
                     if line:
@@ -468,28 +481,28 @@ class Utility(commands.Cog):
             if line:
                 lines.append(line)
 
-            line_h   = 58
-            total_h  = len(lines) * line_h
-            # Attribution line height
-            attr_h   = 36
-            gap      = 18
-            block_h  = total_h + gap + attr_h
-            text_y   = (H - block_h) // 2  # vertically centered
+            LINE_H   = 54
+            total_h  = len(lines) * LINE_H
+            name_gap = 20
+            attr_h   = 30
+            block_h  = total_h + name_gap + attr_h
+            text_y   = (H - block_h) // 2 + 10
 
             for ln in lines:
-                draw.text((TEXT_X, text_y), ln, font=font_quote, fill=TEXT_COLOR)
-                text_y += line_h
+                draw.text((TEXT_X, text_y), ln, font=font_quote, fill=QUOTE_COL)
+                text_y += LINE_H
 
-            # Attribution: "— display_name"
-            text_y += gap
-            attr    = f"~ {display_name}"
-            draw.text((TEXT_X + 4, text_y), attr, font=font_name, fill=NAME_COLOR)
+            # Attribution
+            text_y += name_gap
+            display_name = raw_name if raw_name.isascii() else safe_name
+            attr = f"— {display_name}"
+            draw.text((TEXT_X + 2, text_y), attr, font=font_name, fill=NAME_COL)
 
-            # Subtle bottom footer
+            # ── Footer ──
             footer = "MoonLight"
-            bbox   = draw.textbbox((0, 0), footer, font=font_footer)
-            fw     = bbox[2] - bbox[0]
-            draw.text(((W - fw) // 2, H - 26), footer, font=font_footer, fill=DIM_COLOR)
+            fb = draw.textbbox((0, 0), footer, font=font_footer)
+            fw = fb[2] - fb[0]
+            draw.text(((W - fw) // 2, H - CARD_PAD - 20), footer, font=font_footer, fill=DIM_COL)
 
             buf = io.BytesIO()
             img.save(buf, format="PNG")
@@ -497,11 +510,10 @@ class Utility(commands.Cog):
             return buf
 
         buf = await self.bot.loop.run_in_executor(None, build_card)
-
         await quote_channel.send(file=discord.File(buf, filename="quote.png"))
 
         try:
-            await ctx.author.send("🖼️ Your quote was posted.")
+            await ctx.author.send("🖼️ Your quote was posted to the quotes channel.")
         except discord.Forbidden:
             pass
 
