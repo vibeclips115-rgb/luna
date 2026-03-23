@@ -193,7 +193,7 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
         # 7 — AI
         page(
             "🤖  AI — Luna's Intelligence",
-            "> Luna is powered by **Groq** (`llama-3.3-70b-versatile`).\n> She listens, she remembers context, and she has opinions.",
+            "> Luna is powered by AI.\n> She listens, she remembers context, and she has opinions.",
             0x5865f2,
             [
                 (
