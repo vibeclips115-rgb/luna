@@ -1,13 +1,26 @@
 import asyncio
+import sqlite3
+import os
 import discord
 from discord.ext import commands
 from datetime import datetime
 
-# Import the shared db connection and helpers from your existing db module
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db import conn, get_balance, set_balance
+# ---------- DB CONNECTION (inline — no import needed) ----------
+DB_PATH = "/data/moonlight.db" if os.path.isdir("/data") else "moonlight.db"
+conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+
+def _get_balance(user_id: int) -> int:
+    cur = conn.cursor()
+    cur.execute("INSERT OR IGNORE INTO users (user_id, balance, last_daily) VALUES (?, 1000, 0)", (user_id,))
+    conn.commit()
+    cur.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,))
+    return cur.fetchone()[0]
+
+def _set_balance(user_id: int, amount: int) -> None:
+    cur = conn.cursor()
+    cur.execute("INSERT OR IGNORE INTO users (user_id, balance, last_daily) VALUES (?, 1000, 0)", (user_id,))
+    cur.execute("UPDATE users SET balance = ? WHERE user_id = ?", (amount, user_id))
+    conn.commit()
 
 # ---------- RANK HIERARCHY ----------
 RANKS = ["member", "hero", "elder", "co-owner", "owner"]
@@ -66,7 +79,6 @@ def _get_clan_by_name(name: str) -> dict | None:
 
 
 def _get_clan_of_user(user_id: int) -> tuple[dict, str] | tuple[None, None]:
-    """Returns (clan_dict, role) or (None, None)."""
     cur = conn.cursor()
     cur.execute(
         "SELECT c.id, c.name, c.leader_id, c.balance, cm.role "
@@ -81,7 +93,6 @@ def _get_clan_of_user(user_id: int) -> tuple[dict, str] | tuple[None, None]:
 
 
 def _get_clan_members(clan_id: int) -> list[tuple[int, str]]:
-    """Returns list of (user_id, role)."""
     cur = conn.cursor()
     cur.execute("SELECT user_id, role FROM clan_members WHERE clan_id = ?", (clan_id,))
     return cur.fetchall()
@@ -102,7 +113,7 @@ def _create_clan(name: str, leader_id: int) -> int:
     )
     clan_id = cur.lastrowid
     cur.execute(
-        "INSERT INTO clan_members (user_id, clan_id, role) VALUES (?, ?, 'owner')",
+        "INSERT OR REPLACE INTO clan_members (user_id, clan_id, role) VALUES (?, ?, 'owner')",
         (leader_id, clan_id)
     )
     conn.commit()
@@ -142,10 +153,7 @@ def _delete_clan(clan_id: int) -> None:
 
 def _update_vault(clan_id: int, amount: int) -> int:
     cur = conn.cursor()
-    cur.execute(
-        "UPDATE clans SET balance = balance + ? WHERE id = ?",
-        (amount, clan_id)
-    )
+    cur.execute("UPDATE clans SET balance = balance + ? WHERE id = ?", (amount, clan_id))
     conn.commit()
     cur.execute("SELECT balance FROM clans WHERE id = ?", (clan_id,))
     return cur.fetchone()[0]
@@ -154,17 +162,14 @@ def _update_vault(clan_id: int, amount: int) -> int:
 # ---------- NICKNAME HELPER ----------
 
 async def _set_clan_nick(member: discord.Member, clan_name: str | None) -> None:
-    """Append ⌜superscript⌝ clan tag to nickname, or strip it."""
     try:
         base = member.display_name
-        # Strip existing clan tag if present
         if " ⌜" in base:
             base = base[:base.rfind(" ⌜")].strip()
 
         if clan_name:
             sup = to_superscript(clan_name)
             new_nick = f"{base} ⌜{sup}⌝"
-            # Truncate base to fit Discord's 32-char limit
             while len(new_nick) > 32 and len(base) > 1:
                 base = base[:-1]
                 new_nick = f"{base} ⌜{sup}⌝"
@@ -184,12 +189,10 @@ def _clan_embed(clan: dict, members: list[tuple[int, str]], guild: discord.Guild
         color=0x9b59b6,
         timestamp=datetime.utcnow(),
     )
-
     embed.add_field(name="💰 Vault", value=f"**{clan['balance']:,}** MoonShards", inline=True)
     embed.add_field(name="👥 Members", value=str(len(members)), inline=True)
     embed.add_field(name="⭐ Level", value=str(clan.get("level", 1)), inline=True)
 
-    # Roster grouped by rank highest first
     roster_lines = []
     for rank in reversed(RANKS):
         for uid, role in members:
@@ -246,7 +249,7 @@ class Clans(commands.Cog):
         if _get_clan_by_name(name):
             return await ctx.send(f"❌ A clan named **{name}** already exists.")
 
-        bal = get_balance(ctx.author.id)
+        bal = _get_balance(ctx.author.id)
         if bal < CLAN_CREATE_MIN:
             return await ctx.send(
                 f"❌ You need at least **1,000,000 MoonShards** to create a clan.\n"
@@ -319,7 +322,6 @@ class Clans(commands.Cog):
         if str(reaction.emoji) == "🔴":
             return await ctx.send(f"❌ {member.mention} declined the invitation.")
 
-        # Re-check in case of race condition
         clan2, _ = _get_clan_of_user(ctx.author.id)
         if not clan2:
             return await ctx.send("❌ The clan no longer exists.")
@@ -494,7 +496,6 @@ class Clans(commands.Cog):
         if str(reaction.emoji) == "❌":
             return await ctx.send("✅ Deletion cancelled.")
 
-        # Strip nicks from all members
         for uid, _ in members:
             m = ctx.guild.get_member(uid)
             if m:
@@ -517,11 +518,11 @@ class Clans(commands.Cog):
         if not clan:
             return await ctx.send("❌ You're not in a clan.")
 
-        bal = get_balance(ctx.author.id)
+        bal = _get_balance(ctx.author.id)
         if bal < amount:
             return await ctx.send(f"❌ You only have **{bal:,}** MoonShards.")
 
-        set_balance(ctx.author.id, bal - amount)
+        _set_balance(ctx.author.id, bal - amount)
         new_vault = _update_vault(clan["id"], amount)
 
         await ctx.send(embed=discord.Embed(
