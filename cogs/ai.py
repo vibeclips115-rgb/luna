@@ -69,8 +69,9 @@ You are Luna, a Discord bot who is sweet and warm to everyone.
 
 # ---------- STATE ----------
 last_trigger: dict[int, float] = {}
-daily_counts: dict[int, dict] = {}  # user_id → {count, date}
-ai_enabled: dict[int, bool] = {}    # guild_id → True/False (default True)
+daily_counts: dict[int, dict] = {}   # user_id → {count, date}
+ai_enabled: dict[int, bool] = {}     # guild_id → True/False (default True)
+disabled_channels: set[int] = set()  # channel_ids where AI is silenced
 
 DAILY_LIMIT = 10  # max AI responses per user per day
 
@@ -127,7 +128,7 @@ class AI(commands.Cog):
                     mention_author=False
                 )
                 await message.channel.send(
-                    f"-# API LIMIT REACHED",
+                    "-# API LIMIT REACHED",
                     delete_after=5
                 )
                 return
@@ -152,10 +153,8 @@ class AI(commands.Cog):
         context_messages = []
         try:
             async for msg in message.channel.history(limit=8, before=message):
-                # Skip other bots but keep Luna's own messages
                 if msg.author.bot and msg.author.id != self.bot.user.id:
                     continue
-                # Skip empty messages
                 if not msg.content.strip():
                     continue
                 role = "assistant" if msg.author.id == self.bot.user.id else "user"
@@ -164,7 +163,6 @@ class AI(commands.Cog):
         except Exception:
             pass
 
-        # Add the triggering message with full context
         context_messages.append({
             "role": "user",
             "content": f"{message.author.display_name} says: {message.content}"
@@ -197,7 +195,40 @@ class AI(commands.Cog):
             print(f"[Groq error] {e}")
             await message.reply("something went wrong on my end.", mention_author=False)
 
-    # ---------- DISABLE / ENABLE ----------
+    # ---------- $ai COMMAND GROUP ----------
+
+    @commands.group(name="ai", invoke_without_command=True)
+    async def ai_group(self, ctx: commands.Context):
+        """AI management commands."""
+        await ctx.send(
+            "Usage:\n"
+            "`$ai disable ch` — disable AI replies in this channel\n"
+            "`$ai enable ch` — re-enable AI replies in this channel"
+        )
+
+    @ai_group.command(name="disable")
+    async def ai_disable(self, ctx: commands.Context, target: str = None):
+        """Disable AI in the current channel. Owner and co-owner only."""
+        if ctx.author.id not in OWNER_IDS:
+            return await ctx.send("❌ You don't have permission to do that.")
+        if target and target.lower() == "ch":
+            disabled_channels.add(ctx.channel.id)
+            await ctx.send(f"🔴 AI replies disabled in {ctx.channel.mention}.")
+        else:
+            await ctx.send("❌ Usage: `$ai disable ch`")
+
+    @ai_group.command(name="enable")
+    async def ai_enable(self, ctx: commands.Context, target: str = None):
+        """Re-enable AI in the current channel. Owner and co-owner only."""
+        if ctx.author.id not in OWNER_IDS:
+            return await ctx.send("❌ You don't have permission to do that.")
+        if target and target.lower() == "ch":
+            disabled_channels.discard(ctx.channel.id)
+            await ctx.send(f"🟢 AI replies enabled in {ctx.channel.mention}.")
+        else:
+            await ctx.send("❌ Usage: `$ai enable ch`")
+
+    # ---------- SERVER-WIDE DISABLE / ENABLE (kept from before) ----------
 
     @commands.command(name="disable")
     async def disable(self, ctx: commands.Context, feature: str = None):
@@ -233,8 +264,12 @@ class AI(commands.Cog):
         if not message.guild:
             return
 
-        # Check if AI is disabled for this server
+        # Check if AI is disabled server-wide
         if not ai_enabled.get(message.guild.id, True):
+            return
+
+        # Check if AI is disabled in this specific channel
+        if message.channel.id in disabled_channels:
             return
 
         # Ignore commands
@@ -246,7 +281,7 @@ class AI(commands.Cog):
 
         content = message.content.lower().strip()
 
-        # Check if replying to Luna — fetch if not cached
+        # Check if replying to Luna
         replied_to_luna = False
         if message.reference and message.reference.message_id:
             try:
@@ -258,7 +293,7 @@ class AI(commands.Cog):
             except Exception:
                 pass
 
-        # Check if Luna's name was mentioned in the message
+        # Check if Luna's name was mentioned
         said_luna = (
             content == "luna"
             or content.startswith("luna ")
