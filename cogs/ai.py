@@ -229,8 +229,12 @@ class AI(commands.Cog):
         if message.author.bot:
             return
 
+        # Block DMs — Luna only works in servers
+        if not message.guild:
+            return
+
         # Check if AI is disabled for this server
-        if not ai_enabled.get(message.guild.id if message.guild else 0, True):
+        if not ai_enabled.get(message.guild.id, True):
             return
 
         # Ignore commands
