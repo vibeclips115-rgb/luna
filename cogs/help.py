@@ -20,6 +20,9 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
         embed.set_thumbnail(url=bot.user.display_avatar.url)
         return embed
 
+    # Shared divider for visual breathing room
+    DIV = "▸"
+
     pages = [
 
         # 0 — Overview
@@ -27,33 +30,35 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
             "🌙 Luna — Command Index",
             (
                 "```\n"
-                "  Navigate  ◀️ ▶️   Jump  1️⃣–8️⃣   Close  ❌\n"
+                "  ◀️ ▶️  Navigate      1️⃣–9️⃣  Jump to page      ❌  Close\n"
                 "```\n"
-                "> Every command starts with `$`\n"
-                "> Some commands are restricted to staff roles\n"
-                "> Luna also responds to her name and message replies — no prefix needed"
+                "> All commands use the **`$`** prefix\n"
+                "> Luna also responds to her **name** or **message replies** — no prefix needed\n"
+                "> Some commands require **staff roles** — see page **5** for details"
             ),
             0x9b59b6,
             [
                 (
-                    "📋  Pages",
+                    "📋  Pages at a Glance",
                     (
-                        "**1️⃣  🎭 Fun** — `$luna` `$fortune` `$cosmic` `$luck` `$comfort` `$prophecy` `$8ball` `$rate` `$roast` `$compliment` `$moonfact`\n"
-                        "**2️⃣  💞 Social** — `$ship` `$marry` `$divorce` `$spouse` `$confess`\n"
-                        "**3️⃣  💰 Economy** — `$balance` `$daily` `$pay` `$leaderboard`\n"
-                        "**4️⃣  🎰 Gambling** — `$dice` `$cf` `$bj` `$sw` `$fish` `$slots` `$rob`\n"
-                        "**5️⃣  🛡️ Moderation** — `$kick` `$ban` `$softban` `$timeout` `$warn` `$clear` `$lock` `$snipe` `$modinfo` `$newrole` `$arole` `$remrole` `$rolepurge` `$rolelist`\n"
-                        "**6️⃣  ⚙️ Utility** — `$hug` `$kiss` `$punch` `$slap` `$pat` `$poke` `$bite` `$wave` `$kill` `$afk` `$av` `$quote`\n"
-                        "**7️⃣  🤖 AI** — `$ai disable ch` `$ai enable ch` `$disable ai` `$enable ai` `$testqotd`\n"
-                        "**8️⃣  📊 Statistics** — `$activity` `$stats` `$messages` `$globalstats`"
+                        f"**1️⃣  🎭 Fun**\n{DIV} `$luna` `$fortune` `$cosmic` `$luck` `$comfort` `$prophecy` `$8ball` `$rate` `$roast` `$compliment` `$moonfact`\n\n"
+                        f"**2️⃣  💞 Social**\n{DIV} `$ship` `$marry` `$divorce` `$spouse` `$confess`\n\n"
+                        f"**3️⃣  💰 Economy**\n{DIV} `$balance` `$daily` `$pay` `$leaderboard`\n\n"
+                        f"**4️⃣  🎰 Gambling**\n{DIV} `$dice` `$cf` `$bj` `$sw` `$fish` `$slots` `$rob`\n\n"
+                        f"**5️⃣  🛡️ Moderation**\n{DIV} `$kick` `$ban` `$softban` `$timeout` `$warn` `$clear` `$lock` `$snipe` `$modinfo` `$newrole` `$arole` `$remrole` `$rolepurge` `$rolelist`\n\n"
+                        f"**6️⃣  ⚙️ Utility**\n{DIV} `$hug` `$kiss` `$punch` `$slap` `$pat` `$poke` `$bite` `$wave` `$kill` `$afk` `$av` `$quote`\n\n"
+                        f"**7️⃣  🤖 AI**\n{DIV} `$ai disable ch` `$ai enable ch` `$disable ai` `$enable ai` `$testqotd`\n\n"
+                        f"**8️⃣  📊 Statistics**\n{DIV} `$activity` `$messages` `$voicetop` `$globalstats` `$compare` `$flex` `$resetstatus` `$manualreset` `$setresetchannel`\n\n"
+                        f"**9️⃣  🏰 Clans**\n{DIV} `$clan create` `$clan invite` `$clan promote` `$clan demote` `$clan kick` `$clan leave` `$clan delete` `$clan deposit` `$clan info` `$clan leaderboard`"
                     )
                 ),
                 (
-                    "⚡  Quick Tips",
+                    "⚡  Quick Jump",
                     (
-                        "─ Use `$help <category>` to jump straight to a page\n"
-                        "─ Example: `$help gambling` · `$help mod` · `$help ai`\n"
-                        "─ Reactions time out after **90 seconds** of inactivity"
+                        "`$help fun` · `$help social` · `$help economy` · `$help gambling`\n"
+                        "`$help mod` · `$help utility` · `$help ai` · `$help stats` · `$help clans`\n"
+                        "─────────────────────────────\n"
+                        "*Reactions time out after **90 seconds** of inactivity.*"
                     )
                 ),
             ]
@@ -65,17 +70,17 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
             "> Chaotic, personality-driven, and very Luna.\n> Available to **everyone** — no restrictions.",
             0x9b59b6,
             [
-                ("`$luna`",               "Luna's origin story. The lore is real. Read it at least once."),
-                ("`$fortune`",            "Luna reads your fortune. Cryptic, unsettling, and somehow always accurate."),
-                ("`$moonfact`",           "A random fact about the Moon. Genuinely educational. Luna approves."),
-                ("`$cosmic`",             "Luna reads your cosmic energy for today. Results may be disturbing."),
-                ("`$luck`",               "Your luck rating for today, complete with a visual progress bar. Don't blame Luna for the outcome."),
-                ("`$comfort`",            "Luna says something kind. She means every word."),
-                ("`$prophecy`",           "A prophecy is delivered. It will happen. Luna doesn't know when."),
-                ("`$8ball <question>`",   "Ask the oracle anything. It speaks in riddles and certainty simultaneously."),
-                ("`$rate <anything>`",    "Luna rates whatever you throw at her, out of 10. Brutal honesty included."),
-                ("`$roast [@user]`",      "Roast someone. The results will sting. You have been warned."),
-                ("`$compliment [@user]`", "Give someone a genuine compliment. A rare act of kindness in this server."),
+                ("`$luna`",               f"{DIV} Luna's origin story. The lore is real. Read it at least once."),
+                ("`$fortune`",            f"{DIV} Luna reads your fortune. Cryptic, unsettling, and somehow always accurate."),
+                ("`$moonfact`",           f"{DIV} A random fact about the Moon. Genuinely educational. Luna approves."),
+                ("`$cosmic`",             f"{DIV} Luna reads your cosmic energy for today. Results may be disturbing."),
+                ("`$luck`",               f"{DIV} Your luck rating for today, complete with a visual bar. Don't blame Luna for the outcome."),
+                ("`$comfort`",            f"{DIV} Luna says something kind. She means every word."),
+                ("`$prophecy`",           f"{DIV} A prophecy is delivered. It will happen. Luna doesn't know when."),
+                ("`$8ball <question>`",   f"{DIV} Ask the oracle anything. It speaks in riddles and certainty simultaneously."),
+                ("`$rate <anything>`",    f"{DIV} Luna rates whatever you throw at her, out of 10. Brutal honesty included."),
+                ("`$roast [@user]`",      f"{DIV} Roast someone. The results will sting. You have been warned."),
+                ("`$compliment [@user]`", f"{DIV} Give someone a genuine compliment. A rare act of kindness in this server."),
             ]
         ),
 
@@ -85,18 +90,18 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
             "> Relationships, anonymous confessions, and interpersonal chaos.\n> Available to **everyone**.",
             0xe84393,
             [
-                ("`$ship [@user1] [@user2]`", "Calculate compatibility between two people. The algorithm is merciless."),
-                ("`$marry [@user]`",          "Propose to someone. They have **60 seconds** to accept or reject you. Luna watches."),
-                ("`$divorce`",                "End your current marriage. Luna witnesses it in complete silence."),
-                ("`$spouse [@user]`",         "Check who someone is married to. Useful for drama."),
+                ("`$ship [@user1] [@user2]`", f"{DIV} Calculate compatibility between two people. The algorithm is merciless."),
+                ("`$marry [@user]`",          f"{DIV} Propose to someone. They have **60 seconds** to accept or reject you. Luna watches."),
+                ("`$divorce`",                f"{DIV} End your current marriage. Luna witnesses it in complete silence."),
+                ("`$spouse [@user]`",         f"{DIV} Check who someone is married to. Useful for drama."),
                 (
                     "`$confess <text>`",
                     (
-                        "Send an anonymous confession to the confessions channel.\n"
-                        "─ Your identity is **completely hidden** — even from staff\n"
-                        "─ Your command message is **deleted instantly**\n"
-                        "─ You'll receive a quiet DM confirming it was posted\n"
-                        "─ *30 second cooldown between confessions*"
+                        f"{DIV} Send an anonymous confession to the confessions channel.\n"
+                        "┣ Your identity is **completely hidden** — even from staff\n"
+                        "┣ Your command message is **deleted instantly**\n"
+                        "┣ You'll receive a quiet DM confirming it was posted\n"
+                        "┗ *30 second cooldown between confessions*"
                     )
                 ),
             ]
@@ -108,10 +113,10 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
             "> Build your MoonShards empire — or watch it crumble in the gambling section.\n> Available to **everyone**.",
             0xf1c40f,
             [
-                ("`$balance [@user]`",    "Check your MoonShards wallet, or spy on someone else's. No shame in it."),
-                ("`$daily`",              "Claim **5,000–15,000 MoonShards** every 24 hours. Don't miss a day."),
-                ("`$pay [@user] <amt>`",  "Transfer MoonShards to another user. Charity or bribery — Luna doesn't judge."),
-                ("`$leaderboard`",        "The top 10 richest players on the server. Your net worth, exposed publicly."),
+                ("`$balance [@user]`",    f"{DIV} Check your MoonShards wallet, or spy on someone else's. No shame in it."),
+                ("`$daily`",              f"{DIV} Claim **5,000–15,000 MoonShards** every 24 hours. Don't miss a day."),
+                ("`$pay [@user] <amt>`",  f"{DIV} Transfer MoonShards to another user. Charity or bribery — Luna doesn't judge."),
+                ("`$leaderboard`",        f"{DIV} The top 10 richest players on the server. Your net worth, exposed publicly."),
             ]
         ),
 
@@ -121,13 +126,13 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
             "> High risk. Potentially higher reward.\n> Luna is not responsible for your financial decisions.",
             0xe67e22,
             [
-                ("`$dice <amt> <n1> <n2>`", "Guess both dice values before they roll.\n> Match 1 → **+1×** · Match both → **+2×** · Miss → **−1×**"),
-                ("`$cf <amt> <h/t>`",       "Coinflip. Heads or tails. Pure 50/50 with no house edge.\n> Win → **+1×** · Lose → **−1×**"),
-                ("`$bj <amt>`",             "Blackjack. Hit 🟢 · Stand 🛑 · Double Down ⚡ — beat the dealer.\n> Natural 21 → **+1.5×** · Standard win → **+1×**"),
-                ("`$sw <amt>`",             "Spin the Wheel of Fate. **Max bet: 100,000**.\n> Multipliers range from **−4× to +4×** — anything can happen"),
-                ("`$fish <amt>`",           "Cast your line and see what bites. **Max bet: 100,000**.\n> Trash → **−4×** · Common → small gain · Legendary → **+4×**"),
-                ("`$slots <amt>`",          "Pull the slot machine. **Max bet: 100,000**.\n> 🌙🌙🌙 → **+10× jackpot** · other combos → varying multipliers"),
-                ("`$rob [@user]`",          "Attempt to rob another user.\n> **40% success rate** — steal up to 25% of their balance\n> Fail → you pay a fine instead. Choose your targets wisely."),
+                ("`$dice <amt> <n1> <n2>`", f"{DIV} Guess both dice values before they roll.\n┣ Match 1 → **+1×** · Match both → **+2×** · Miss → **−1×**"),
+                ("`$cf <amt> <h/t>`",       f"{DIV} Coinflip. Heads or tails. Pure 50/50 with no house edge.\n┣ Win → **+1×** · Lose → **−1×**"),
+                ("`$bj <amt>`",             f"{DIV} Blackjack. Hit 🟢 · Stand 🛑 · Double Down ⚡ — beat the dealer.\n┣ Natural 21 → **+1.5×** · Standard win → **+1×**"),
+                ("`$sw <amt>`",             f"{DIV} Spin the Wheel of Fate. **Max bet: 100,000**.\n┣ Multipliers range from **−4× to +4×** — anything can happen"),
+                ("`$fish <amt>`",           f"{DIV} Cast your line and see what bites. **Max bet: 100,000**.\n┣ Trash → **−4×** · Common → small gain · Legendary → **+4×**"),
+                ("`$slots <amt>`",          f"{DIV} Pull the slot machine. **Max bet: 100,000**.\n┣ 🌙🌙🌙 → **+10× jackpot** · other combos → varying multipliers"),
+                ("`$rob [@user]`",          f"{DIV} Attempt to rob another user.\n┣ **40% success rate** — steal up to 25% of their balance\n┗ Fail → you pay a fine instead. Choose your targets wisely."),
             ]
         ),
 
@@ -137,26 +142,33 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
             "> Staff-only tools, tiered by role.\n> 🔴 **Owner / Co-Owner only** · 🟡 **Trial Mod and above**",
             0xe74c3c,
             [
-                ("🔴  `$kick [@user] [reason]`",                      "Remove a member from the server. They can rejoin."),
-                ("🔴  `$ban [@user] [reason]`",                       "Permanently ban a member. They cannot rejoin."),
-                ("🔴  `$unban <user_id>`",                            "Unban a previously banned user by their Discord ID."),
-                ("🔴  `$softban [@user] [reason]`",                   "Ban then immediately unban — deletes recent messages without a permanent record."),
-                ("🟡  `$timeout [@user] <mins> [reason]`",            "Temporarily mute a member. Alias: `$mute`"),
-                ("🟡  `$removetimeout [@user]`",                      "Lift an active timeout early. Alias: `$unmute`"),
-                ("🟡  `$warn [@user] [reason]`",                      "Issue a formal warning. It's logged and tracked."),
-                ("🟡  `$warnings [@user]`",                           "View the full warning history for a member. Alias: `$warns`"),
-                ("🟡  `$clearwarnings [@user]`",                      "Wipe all warnings from a member's record."),
-                ("🟡  `$clear <amt / bots / user @m / contains kw>`", "Smart bulk delete with four modes: count, bots only, by user, or by keyword."),
-                ("🟡  `$lock [#channel]`",                            "Prevent members from sending messages in a channel."),
-                ("🟡  `$unlock [#channel]`",                          "Restore messaging permissions in a locked channel."),
-                ("🟡  `$slowmode <seconds> [#channel]`",              "Set a slowmode delay. Use `0` to disable it."),
-                ("🟡  `$nick [@user] [nickname]`",                    "Change or reset a member's server nickname."),
-                ("🟡  `$userinfo [@user]`",                           "Full member profile — join date, roles, warnings. Aliases: `$ui` `$whois`"),
-                ("🟡  `$serverinfo`",                                  "Server-wide stats and info. Aliases: `$si` `$server`"),
-                ("🟡  `$snipe` / `$s`",                               "Recover the last deleted message in this channel."),
-                ("🟡  `$esnipe` / `$es`",                             "Recover the last edited message in this channel."),
-                ("🟡  `$modinfo`",                                     "Display the live role-permission breakdown for staff."),
-                ("🔴  `$disable ai` / `$enable ai`",                  "Toggle AI responses **server-wide**. Owner & Co-Owner only."),
+                ("🔴  Ban & Kick",
+                    "`$kick [@user] [reason]` — Remove a member. They can rejoin.\n"
+                    "`$ban [@user] [reason]` — Permanently ban a member.\n"
+                    "`$unban <user_id>` — Unban by Discord ID.\n"
+                    "`$softban [@user] [reason]` — Ban + unban instantly, clears recent messages."
+                ),
+                ("🟡  Mute & Warn",
+                    "`$timeout [@user] <mins> [reason]` — Temporarily mute. Alias: `$mute`\n"
+                    "`$removetimeout [@user]` — Lift an active timeout. Alias: `$unmute`\n"
+                    "`$warn [@user] [reason]` — Issue a formal warning.\n"
+                    "`$warnings [@user]` — View warning history. Alias: `$warns`\n"
+                    "`$clearwarnings [@user]` — Wipe all warnings."
+                ),
+                ("🟡  Channel & Cleanup",
+                    "`$clear <amt / bots / user @m / contains kw>` — Smart bulk delete with 4 modes.\n"
+                    "`$lock [#channel]` — Prevent members from sending messages.\n"
+                    "`$unlock [#channel]` — Restore messaging permissions.\n"
+                    "`$slowmode <seconds> [#channel]` — Set slowmode. Use `0` to disable.\n"
+                    "`$snipe` / `$s` — Recover last deleted message.\n"
+                    "`$esnipe` / `$es` — Recover last edited message."
+                ),
+                ("🟡  User & Server Info",
+                    "`$nick [@user] [nickname]` — Change or reset a nickname.\n"
+                    "`$userinfo [@user]` — Full member profile. Aliases: `$ui` `$whois`\n"
+                    "`$serverinfo` — Server-wide stats. Aliases: `$si` `$server`\n"
+                    "`$modinfo` — Live role-permission breakdown for staff."
+                ),
                 (
                     "🟡  Role Management",
                     (
@@ -166,8 +178,12 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
                         "`$arole <@role> @user` — Assign a role to a user\n"
                         "`$remrole <@role> @user` — Remove a role from a user\n"
                         "`$rolepurge @user` — Strip all non-managed roles from a user\n"
-                        "`$rolelist` — Paginated list of all server roles  *(◀️ ▶️ to navigate)*"
+                        "`$rolelist` — Paginated list of all server roles"
                     )
+                ),
+                ("🔴  AI Toggle",
+                    "`$disable ai` — Disable AI responses server-wide.\n"
+                    "`$enable ai` — Re-enable AI responses server-wide."
                 ),
             ]
         ),
@@ -178,25 +194,25 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
             "> Actions, AFK management, avatars, and quote cards.\n> Available to **everyone** unless noted.",
             0x1abc9c,
             [
-                ("`$hug [@user]`",    "Send a hug. Comes with a GIF. Always appreciated."),
-                ("`$kiss [@user]`",   "Kiss someone. Bold move. Luna fetches a GIF accordingly."),
-                ("`$punch [@user]`",  "Punch someone. They probably deserved it."),
-                ("`$slap [@user]`",   "Slap someone. Clean, efficient, no further comment."),
-                ("`$pat [@user]`",    "Pat someone on the head. Wholesome."),
-                ("`$poke [@user]`",   "Poke someone repeatedly until they acknowledge you exist."),
-                ("`$bite [@user]`",   "Bite someone. Feral behavior. Luna does not endorse this."),
-                ("`$wave [@user]`",   "Wave at someone. The civilized option."),
-                ("`$kill [@user]`",   "Dramatically eliminate someone from the narrative. Luna narrates it."),
-                ("`$afk [reason]`",   "Set your AFK status with an optional reason.\nLuna will notify anyone who mentions you while you're away — and announce your return."),
-                ("`$av [@user]`",     "Display a user's full-size avatar. Aliases: `$avatar` `$pfp`"),
+                (
+                    "🤝  Actions",
+                    "`$hug` `$kiss` `$punch` `$slap` `$pat` `$poke` `$bite` `$wave` `$kill` — all accept `[@user]`\n"
+                    f"{DIV} Each comes with a matching GIF. Luna narrates `$kill` herself."
+                ),
+                ("`$afk [reason]`",
+                    f"{DIV} Set your AFK status with an optional reason.\n"
+                    "┣ Luna notifies anyone who mentions you while you're away\n"
+                    "┗ Announces your return when you next type"
+                ),
+                ("`$av [@user]`",     f"{DIV} Display a user's full-size avatar. Aliases: `$avatar` `$pfp`"),
                 (
                     "`$quote`",
                     (
-                        "Generate a stylized quote card and post it to the quotes channel.\n"
-                        "─ `$quote <text>` — quote yourself\n"
-                        "─ `$quote @user <text>` — quote someone else\n"
-                        "─ *(reply to any message)* + `$quote` — instantly quotes that message and its author\n"
-                        "─ *15 second cooldown · max 220 characters*"
+                        f"{DIV} Generate a stylized quote card posted to the quotes channel.\n"
+                        "┣ `$quote <text>` — quote yourself\n"
+                        "┣ `$quote @user <text>` — quote someone else\n"
+                        "┣ *(reply to any message)* + `$quote` — instantly quotes that message\n"
+                        "┗ *15 second cooldown · max 220 characters*"
                     )
                 ),
             ]
@@ -222,28 +238,27 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
                 (
                     "⏱️  Limits",
                     (
-                        "─ **Daily limit:** 10 AI responses per user per day\n"
-                        "─ **Cooldown:** 10 seconds between responses\n"
-                        "─ **No limits for:** Ryuken & Aizen — always bypassed"
+                        "┣ **Daily limit:** 10 AI responses per user per day\n"
+                        "┣ **Cooldown:** 10 seconds between responses\n"
+                        "┗ **Bypassed for:** Ryuken & Aizen — always unlimited"
                     )
                 ),
                 (
-                    "🔧  AI Controls",
+                    "🔧  AI Controls  *(Owner & Co-Owner only)*",
                     (
-                        "`$ai disable ch` — silence Luna in the **current channel** only\n"
-                        "`$ai enable ch` — restore Luna's replies in the **current channel**\n"
-                        "`$disable ai` — disable AI responses **server-wide**\n"
-                        "`$enable ai` — re-enable AI responses **server-wide**\n"
-                        "*All controls require Owner or Co-Owner.*"
+                        "`$ai disable ch` — Silence Luna in the current channel only\n"
+                        "`$ai enable ch` — Restore Luna's replies in the current channel\n"
+                        "`$disable ai` — Disable AI responses server-wide\n"
+                        "`$enable ai` — Re-enable AI responses server-wide"
                     )
                 ),
                 (
                     "🌙  QOTD — Question of the Day",
                     (
-                        "Luna posts an AI-generated question every day to the QOTD channel.\n"
-                        "─ Themes rotate: philosophy, hypotheticals, morality, creativity, and more\n"
-                        "─ Pings the QOTD role automatically\n"
-                        "─ `$testqotd` — manually trigger a QOTD *(Owner & Co-Owner only)*"
+                        f"{DIV} Luna posts an AI-generated question every day to the QOTD channel.\n"
+                        "┣ Themes rotate: philosophy, hypotheticals, morality, creativity, and more\n"
+                        "┣ Pings the QOTD role automatically\n"
+                        "┗ `$testqotd` — manually trigger a QOTD *(Owner & Co-Owner only)*"
                     )
                 ),
             ]
@@ -252,29 +267,140 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
         # 8 — Statistics
         page(
             "📊  Statistics Commands",
-            "> Track your activity, earn ranks, and see who actually runs this server.\n> Available to **everyone**.",
+            "> Track activity, earn ranks, and see who actually runs this server.\n> Available to **everyone** unless marked 🔴.",
             0x3498db,
             [
                 (
                     "`$activity [@user]`",
                     (
-                        "Full activity profile for a user — rank, message count with a visual bar, voice time with a visual bar, and leaderboard position.\n"
-                        "Aliases: `$stats` `$profile`"
+                        f"{DIV} Full activity profile — rank badge, message count, voice time, leaderboard position,\n"
+                        "next rank progress, flavor text, and countdown to the next leaderboard reset.\n"
+                        "┗ Aliases: `$stats` `$profile`"
                     )
                 ),
                 (
                     "`$messages`",
                     (
-                        "Top 10 users ranked by total message count.\n"
-                        "Your position is highlighted even if you're not in the top 10.\n"
-                        "Aliases: `$topmessages` `$msgstop`"
+                        f"{DIV} Top 10 users by message count this cycle.\n"
+                        "┣ Your position is highlighted even if you're outside the top 10\n"
+                        "┣ Footer shows time remaining until the next reset\n"
+                        "┗ Aliases: `$topmessages` `$msgstop`"
+                    )
+                ),
+                (
+                    "`$voicetop`",
+                    (
+                        f"{DIV} Top 10 users by total voice channel time.\n"
+                        "┗ Aliases: `$vctop` `$topvoice`"
                     )
                 ),
                 (
                     "`$globalstats`",
                     (
-                        "Server-wide aggregate stats: total messages logged, number of tracked users, and current members in voice channels.\n"
-                        "Aliases: `$serverstats` `$ss`"
+                        f"{DIV} Server-wide aggregate stats: total messages, tracked users,\n"
+                        "members in VC right now, average messages per user, and the most active member.\n"
+                        "┗ Aliases: `$serverstats` `$ss`"
+                    )
+                ),
+                (
+                    "`$compare @user1 [@user2]`",
+                    (
+                        f"{DIV} Head-to-head activity duel between two members.\n"
+                        "┣ Compares messages, voice time, and combined score\n"
+                        "┣ Declares a winner with the point gap\n"
+                        "┗ Alias: `$vs`"
+                    )
+                ),
+                (
+                    "`$flex`",
+                    (
+                        f"{DIV} Post a glorified brag card of your own stats with zero shame.\n"
+                        "┗ Alias: `$brag`"
+                    )
+                ),
+                (
+                    "`$resetstatus`",
+                    (
+                        f"{DIV} Check when the message leaderboard last reset\n"
+                        "┗ and how long until the next automatic reset. Alias: `$resetinfo`"
+                    )
+                ),
+                (
+                    "🔴  `$setresetchannel`",
+                    (
+                        f"{DIV} Set the current channel as the destination for leaderboard reset announcements.\n"
+                        "┗ *Requires Administrator.*"
+                    )
+                ),
+                (
+                    "🔴  `$manualreset`",
+                    (
+                        f"{DIV} Immediately wipe the message leaderboard and restart the 24h timer.\n"
+                        "┗ *Requires Administrator.* Alias: `$forcereset`"
+                    )
+                ),
+            ]
+        ),
+
+        # 9 — Clans
+        page(
+            "🏰  Clan Commands",
+            "> Build a clan, grow your vault, and dominate the leaderboard.\n> Available to **everyone** — rank restrictions apply within clans.",
+            0x8e44ad,
+            [
+                (
+                    "🏗️  Getting Started",
+                    (
+                        f"`$clan create <name>` — Found a new clan.\n"
+                        f"┣ Costs **1,000,000 MoonShards** to create\n"
+                        f"┣ Name must be **30 characters or fewer**\n"
+                        f"┗ You become the **Owner** automatically"
+                    )
+                ),
+                (
+                    "📨  Membership",
+                    (
+                        f"`$clan invite @user` — Invite someone to your clan *(Elder+ only)*\n"
+                        f"┣ Target has **60 seconds** to accept or decline\n"
+                        f"`$clan kick @user` — Remove a member *(Co-Owner+ only)*\n"
+                        f"`$clan leave` — Leave your current clan\n"
+                        f"┗ *Owners must delete the clan instead of leaving*"
+                    )
+                ),
+                (
+                    "⬆️  Rank System",
+                    (
+                        f"⚪ **Member** → 🟢 **Hero** → 🔵 **Elder** → 🟣 **Co-Owner** → 👑 **Owner**\n\n"
+                        f"`$clan promote @user` — Promote a member one rank *(Co-Owner+ only)*\n"
+                        f"`$clan demote @user` — Demote a member one rank *(Co-Owner+ only)*\n"
+                        f"┣ Only the **Owner** can promote/demote Co-Owners\n"
+                        f"┗ **Elders and above** can invite new members"
+                    )
+                ),
+                (
+                    "💰  Vault & Levels",
+                    (
+                        f"`$clan deposit <amount>` — Deposit your MoonShards into the clan vault\n"
+                        f"┣ Level = **1 + 1 per 1,000,000** MoonShards in the vault\n"
+                        f"┣ A progress bar tracks your march to the next level\n"
+                        f"┗ Vault balance and level are shown on your clan profile"
+                    )
+                ),
+                (
+                    "📋  Info & Leaderboard",
+                    (
+                        f"`$clan info [name]` — View full clan profile: vault, level, progress bar, and full roster with ranks\n"
+                        f"┣ Omit the name to view your own clan\n"
+                        f"`$clan leaderboard` — Top 10 clans ranked by Level → Vault → Members\n"
+                        f"┗ Alias: `$clan lb`"
+                    )
+                ),
+                (
+                    "💀  Deleting a Clan",
+                    (
+                        f"`$clan delete` — Permanently disband the clan *(Owner only)*\n"
+                        f"┣ Requires **confirmation** before deletion\n"
+                        f"┗ All members are removed and nicknames are cleared"
                     )
                 ),
             ]
@@ -282,15 +408,15 @@ def build_pages(bot: commands.Bot) -> list[discord.Embed]:
     ]
 
     # Consistent footers
-    labels = ["Index"] + [f"Page {i}/8" for i in range(1, 9)]
+    labels = ["Index"] + [f"Page {i} / 9" for i in range(1, 10)]
     for i, embed in enumerate(pages):
-        embed.set_footer(text=f"MoonLight  ✦  {labels[i]}  ·  ◀️ ▶️ navigate  ·  1️⃣–8️⃣ jump  ·  ❌ close")
+        embed.set_footer(text=f"MoonLight  ✦  {labels[i]}  ·  ◀️ ▶️ to navigate  ·  1️⃣–9️⃣ to jump  ·  ❌ to close")
 
     return pages
 
 
 # ---------- REACTIONS ----------
-NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
+NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]
 NAV_EMOJIS    = ["◀️", "▶️", "❌"]
 ALL_EMOJIS    = NAV_EMOJIS + NUMBER_EMOJIS
 
@@ -317,6 +443,8 @@ class Help(commands.Cog):
             "ai":         7,
             "stats":      8,
             "statistics": 8,
+            "clans":      9,
+            "clan":       9,
         }
 
         current = 0

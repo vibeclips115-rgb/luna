@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import time
 
 START_BALANCE = 1000
 
@@ -42,8 +43,8 @@ def _setup():
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS user_messages (
-        user_id INTEGER PRIMARY KEY,
-        count   INTEGER DEFAULT 0
+        user_id      INTEGER PRIMARY KEY,
+        count        INTEGER DEFAULT 0
     )
     """)
 
@@ -61,6 +62,20 @@ def _setup():
         bans    INTEGER DEFAULT 0
     )
     """)
+
+    # Tracks when the message leaderboard was last wiped
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS meta (
+        key   TEXT PRIMARY KEY,
+        value TEXT
+    )
+    """)
+
+    # Seed the last_reset time if it doesn't exist yet
+    cur.execute(
+        "INSERT OR IGNORE INTO meta (key, value) VALUES ('last_reset', ?)",
+        (str(int(time.time())),)
+    )
 
     conn.commit()
 
@@ -168,3 +183,33 @@ def get_message_leaderboard(limit: int = 10) -> list[tuple]:
         (limit,)
     )
     return cur.fetchall()
+
+
+def get_voice_leaderboard(limit: int = 10) -> list[tuple]:
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT user_id, seconds FROM user_voice ORDER BY seconds DESC LIMIT ?",
+        (limit,)
+    )
+    return cur.fetchall()
+
+
+# ---------- RESET ----------
+
+def reset_message_counts() -> None:
+    """Wipe all message counts and update the last_reset timestamp."""
+    cur = conn.cursor()
+    cur.execute("UPDATE user_messages SET count = 0")
+    cur.execute(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES ('last_reset', ?)",
+        (str(int(time.time())),)
+    )
+    conn.commit()
+
+
+def get_last_reset() -> int:
+    """Returns the Unix timestamp of the last leaderboard reset."""
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM meta WHERE key = 'last_reset'")
+    row = cur.fetchone()
+    return int(row[0]) if row else 0
