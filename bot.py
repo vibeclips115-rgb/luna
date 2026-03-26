@@ -146,6 +146,42 @@ async def bye(ctx: commands.Context):
     bot.loop.create_task(_farewell_after_24h())
 
 
+@bot.command(name="revive")
+async def revive(ctx: commands.Context):
+    global _shutdown_in_progress
+
+    if ctx.author.id != RYUKEN_ID:
+        return  # silently ignore
+
+    if not _shutdown_in_progress:
+        return await ctx.send("⚠️ Luna isn't shut down.")
+
+    # ---------- RE-ENABLE ALL COMMANDS ----------
+    for cog in bot.cogs.values():
+        for command in cog.get_commands():
+            command.enabled = True
+
+    for command in bot.commands:
+        command.enabled = True
+
+    _shutdown_in_progress = False
+
+    # ---------- REVIVE MESSAGE ----------
+    embed = discord.Embed(
+        title="🌙 luna is back.",
+        description=(
+            "shutdown sequence aborted.\n"
+            "all systems restored.\n\n"
+            "maybe moonlight has a second chapter after all.\n"
+            "*— luna 🌙*"
+        ),
+        color=0x9b59b6,
+        timestamp=datetime.utcnow(),
+    )
+    embed.set_footer(text="MoonLight ✦ back online.")
+    await ctx.send(embed=embed)
+
+
 # ---------- EVENTS ----------
 
 @bot.event
