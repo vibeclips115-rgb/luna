@@ -100,7 +100,7 @@ async def bye(ctx: commands.Context):
             command.enabled = False
 
     for command in bot.commands:
-        if command.name != "bye":
+        if command.name not in ("bye", "revive"):
             command.enabled = False
 
     # ---------- FINAL MESSAGE + TIMER ----------
