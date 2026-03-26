@@ -187,8 +187,8 @@ class Fun(commands.Cog):
             color=discord.Color.purple(),
             timestamp=datetime.utcnow(),
         )
-        embed.add_field(name="📜 Lines of Code", value="**3263+** lines", inline=True)
-        embed.add_field(name="⏱️ Time Spent", value="~**34 hours**", inline=True)
+        embed.add_field(name="📜 Lines of Code", value="**16725+** lines", inline=True)
+        embed.add_field(name="⏱️ Time Spent", value="~**2 months+**", inline=True)
         embed.add_field(name="⭐ Creator", value="**Ryuken**", inline=True)
         embed.add_field(
             name="🧠 Built With",
